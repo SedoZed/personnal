@@ -15,5 +15,8 @@ export const state = {
     erc: [],
     hceres: [],
     keywords: []
-  }
+  },
+
+  // index pour l'autocomplete (thèmes + counts)
+  themeCounts: new Map(), // themeLower -> { label, count }
 };

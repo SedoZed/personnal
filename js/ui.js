@@ -13,7 +13,12 @@ export function getUI(){
     charge: document.getElementById("charge"),
     recenter: document.getElementById("recenter"),
     clearAll: document.getElementById("clearAll"),
+
     expertSearch: document.getElementById("expertSearch"),
+    expertClear: document.getElementById("expertClear"),
+    suggestions: document.getElementById("suggestions"),
+    resultsList: document.getElementById("resultsList"),
+    resultsMeta: document.getElementById("resultsMeta"),
   };
 }
 
@@ -101,7 +106,7 @@ export function buildChecklist(kind, values, state, onChange){
     container.appendChild(wrap);
   });
 
-  // Affiche combien de labos portent chaque valeur
+  // Compte labos par valeur
   const mapCount = new Map();
   state.nodesAll.forEach(n => n[kind].forEach(x => mapCount.set(x, (mapCount.get(x)||0)+1)));
   container.querySelectorAll(".item").forEach(row=>{
@@ -110,4 +115,55 @@ export function buildChecklist(kind, values, state, onChange){
     const c = mapCount.get(main);
     if (sub) sub.textContent = (typeof c === "number") ? `${c} labo(s)` : "";
   });
+}
+
+/* ---------- Recherche “humaine” UI ---------- */
+
+export function renderSuggestions(ui, items){
+  // items: [{label, count}]
+  if (!items || items.length === 0){
+    ui.suggestions.hidden = true;
+    ui.suggestions.innerHTML = "";
+    return;
+  }
+  ui.suggestions.hidden = false;
+  ui.suggestions.innerHTML = items.map(it => `
+    <div class="sug-item" data-sug="${escapeHTML(it.label)}">
+      <b>${escapeHTML(it.label)}</b>
+      <span>${it.count} labo(s)</span>
+    </div>
+  `).join("");
+
+  ui.suggestions.querySelectorAll(".sug-item").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      const v = el.getAttribute("data-sug") || "";
+      ui.expertSearch.value = v;
+      ui.suggestions.hidden = true;
+      ui.suggestions.innerHTML = "";
+      ui.expertSearch.dispatchEvent(new Event("input"));
+      ui.expertSearch.focus();
+    });
+  });
+}
+
+export function renderResults(ui, results, totalMatches){
+  // results: [{id,title,group,score,degree,matchedFields}]
+  if (!results || results.length === 0){
+    ui.resultsMeta.textContent = totalMatches ? `${totalMatches} match(s)` : "—";
+    ui.resultsList.innerHTML = `<div class="results-empty">Aucun résultat. Essaie un autre terme.</div>`;
+    return;
+  }
+
+  ui.resultsMeta.textContent = `${results.length} affiché(s) · ${totalMatches} match(s)`;
+
+  ui.resultsList.innerHTML = results.map(r => `
+    <div class="result" data-id="${escapeHTML(r.id)}">
+      <div class="title">${escapeHTML(r.title || r.id)}</div>
+      <div class="meta">
+        <span class="badge-mini">score ${r.score.toFixed(1)}</span>
+        <span class="badge-mini">liens ${r.degree}</span>
+        <span class="badge-mini">${escapeHTML(r.group || "∅")}</span>
+      </div>
+    </div>
+  `).join("");
 }

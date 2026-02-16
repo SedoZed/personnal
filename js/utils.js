@@ -41,3 +41,11 @@ export function hash(s){
   for (let i=0;i<s.length;i++) h = ((h<<5)-h) + s.charCodeAt(i) | 0;
   return Math.abs(h);
 }
+
+export function tokenizeQuery(q){
+  return q
+    .toLowerCase()
+    .split(/[\s,;]+/g)
+    .map(s => s.trim())
+    .filter(Boolean);
+}

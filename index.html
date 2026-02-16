@@ -23,9 +23,27 @@
 
         <!-- Recherche expertise (humaine) -->
         <div class="expert-search">
-          <input id="expertSearch" type="text" placeholder="Rechercher une expertise (ERC / HCERES / keyword)…" />
+          <div class="expert-row">
+            <input id="expertSearch" type="text" placeholder="Rechercher une expertise (ex: physics materials AI)…" autocomplete="off" />
+            <button id="expertClear" title="Effacer">✕</button>
+          </div>
+
           <div class="expert-hint">
-            Tape un terme → les labos correspondants sont mis en évidence (et leurs voisins).
+            Suggestions + classement. Clique un résultat pour focus/zoom + surlignage réseau.
+          </div>
+
+          <!-- Suggestions (autocomplete) -->
+          <div class="suggestions" id="suggestions" hidden></div>
+
+          <!-- Résultats -->
+          <div class="results">
+            <div class="results-head">
+              <strong>Résultats</strong>
+              <span id="resultsMeta">—</span>
+            </div>
+            <div class="results-list" id="resultsList">
+              <div class="results-empty">Tape un terme (ex: “laser”, “AI”, “materials”…)</div>
+            </div>
           </div>
         </div>
       </header>
@@ -69,7 +87,7 @@
             </div>
 
             <div class="hint">
-              Zoom molette / pinch · déplacer en glissant l’arrière-plan · drag & drop bulles · clic bulle = surlignage.
+              Zoom molette/pinch · déplacer fond · drag bulles · clic bulle = surlignage voisins.
             </div>
           </div>
         </div>
