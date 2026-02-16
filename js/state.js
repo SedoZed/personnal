@@ -3,20 +3,20 @@ export const state = {
   nodesAll: [],
   nodes: [],
   links: [],
-  linkMode: "erc",
+
+  // On fixe le “mode” : keywords IA partout
+  linkMode: "kwia",
   minShared: 1,
   charge: -300,
+
   selected: {
-    erc: new Set(),
-    hceres: new Set(),
-    keywords: new Set(),
-  },
-  values: {
-    erc: [],
-    hceres: [],
-    keywords: []
+    kwia: new Set(),
   },
 
-  // index pour l'autocomplete (thèmes + counts)
+  values: {
+    kwia: []
+  },
+
+  // autocomplete (keywords IA uniquement)
   themeCounts: new Map(), // themeLower -> { label, count }
 };

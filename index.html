@@ -6,8 +6,6 @@
   <title>Plateforme de datavisualisation — Accueil</title>
 
   <link rel="stylesheet" href="./styles.css" />
-
-  <!-- D3 (global) -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 
@@ -15,16 +13,16 @@
   <div class="app">
     <aside class="panel">
       <header>
-        <h1><span class="dot"></span>Accueil — Réseau de laboratoires</h1>
+        <h1><span class="dot"></span>Accueil — Réseau de laboratoires (IA)</h1>
         <p>
           Chaque bulle = un laboratoire (<code>dcterms:title</code>).<br>
-          Les liens = valeurs en commun (ERC/HCERES/keywords). Séparateurs intra-champ : <code>|</code>.
+          <b>Liens + recherche + filtres</b> basés sur <code>valo:keywords-ia</code>. Séparateur intra-champ : <code>|</code>.
         </p>
 
         <!-- Recherche expertise (humaine) -->
         <div class="expert-search">
           <div class="expert-row">
-            <input id="expertSearch" type="text" placeholder="Rechercher une expertise (ex: physics materials AI)…" autocomplete="off" />
+            <input id="expertSearch" type="text" placeholder="Rechercher un mot-clé IA (ex: vision, NLP, data)…" autocomplete="off" />
             <button id="expertClear" title="Effacer">✕</button>
           </div>
 
@@ -32,17 +30,15 @@
             Suggestions + classement. Clique un résultat pour focus/zoom + surlignage réseau.
           </div>
 
-          <!-- Suggestions (autocomplete) -->
           <div class="suggestions" id="suggestions" hidden></div>
 
-          <!-- Résultats -->
           <div class="results">
             <div class="results-head">
               <strong>Résultats</strong>
               <span id="resultsMeta">—</span>
             </div>
             <div class="results-list" id="resultsList">
-              <div class="results-empty">Tape un terme (ex: “laser”, “AI”, “materials”…)</div>
+              <div class="results-empty">Tape un mot-clé IA (ex: “vision”, “robotics”, “LLM”…)</div>
             </div>
           </div>
         </div>
@@ -51,24 +47,17 @@
       <div class="controls">
         <div class="section" data-collapsible="false">
           <div class="section-head">
-            <strong>Liens</strong>
-            <span>source des connexions</span>
+            <strong>Réseau</strong>
+            <span>keywords-ia</span>
           </div>
           <div class="section-body">
-            <label for="linkMode">Relier les labos par :</label>
-            <select id="linkMode">
-              <option value="erc" selected>valo:domaineErc</option>
-              <option value="hceres">valo:domaineHceres</option>
-              <option value="keywords">valo:keywords</option>
-            </select>
-
-            <div class="row" style="margin-top:10px;">
+            <div class="row">
               <div>
                 <label for="minShared">Seuil “en commun”</label>
                 <select id="minShared">
-                  <option value="1" selected>≥ 1 valeur</option>
-                  <option value="2">≥ 2 valeurs</option>
-                  <option value="3">≥ 3 valeurs</option>
+                  <option value="1" selected>≥ 1 mot-clé IA</option>
+                  <option value="2">≥ 2 mots-clés IA</option>
+                  <option value="3">≥ 3 mots-clés IA</option>
                 </select>
               </div>
               <div>
@@ -92,47 +81,18 @@
           </div>
         </div>
 
-        <div class="section" id="sec-erc">
+        <!-- Un seul filtre : Keywords IA -->
+        <div class="section" id="sec-kwia">
           <div class="section-head">
-            <strong>Filtre — ERC</strong>
-            <span class="count" data-count-for="erc">0 sélection</span>
+            <strong>Filtre — Keywords IA</strong>
+            <span class="count" data-count-for="kwia">0 sélection</span>
           </div>
           <div class="section-body">
-            <div class="checklist" data-list="erc">
+            <div class="checklist" data-list="kwia">
               <div class="search">
-                <input type="text" placeholder="Rechercher un domaine ERC…" data-search="erc" />
+                <input type="text" placeholder="Rechercher un mot-clé IA…" data-search="kwia" />
               </div>
-              <div class="items" data-items="erc"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="section" id="sec-hceres">
-          <div class="section-head">
-            <strong>Filtre — HCERES</strong>
-            <span class="count" data-count-for="hceres">0 sélection</span>
-          </div>
-          <div class="section-body">
-            <div class="checklist" data-list="hceres">
-              <div class="search">
-                <input type="text" placeholder="Rechercher un domaine HCERES…" data-search="hceres" />
-              </div>
-              <div class="items" data-items="hceres"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="section" id="sec-keywords">
-          <div class="section-head">
-            <strong>Filtre — Keywords</strong>
-            <span class="count" data-count-for="keywords">0 sélection</span>
-          </div>
-          <div class="section-body">
-            <div class="checklist" data-list="keywords">
-              <div class="search">
-                <input type="text" placeholder="Rechercher un mot-clé…" data-search="keywords" />
-              </div>
-              <div class="items" data-items="keywords"></div>
+              <div class="items" data-items="kwia"></div>
             </div>
           </div>
         </div>
@@ -141,7 +101,7 @@
       <div class="stats">
         <div class="statline"><span>Labos visibles</span> <b id="statNodes">0</b></div>
         <div class="statline"><span>Liens</span> <b id="statLinks">0</b></div>
-        <div class="statline"><span>Mode de liens</span> <b id="statMode">ERC</b></div>
+        <div class="statline"><span>Champ</span> <b id="statMode">KEYWORDS IA</b></div>
       </div>
     </aside>
 
@@ -155,7 +115,7 @@
 
       <div class="legend">
         <span class="pill"><span class="swatch"></span>Laboratoire</span>
-        <span class="pill"><span class="swatch link"></span>Lien (valeurs en commun)</span>
+        <span class="pill"><span class="swatch link"></span>Lien (keywords IA en commun)</span>
       </div>
 
       <div class="tooltip" id="tooltip"></div>

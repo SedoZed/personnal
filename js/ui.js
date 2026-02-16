@@ -8,7 +8,7 @@ export function getUI(){
     statNodes: document.getElementById("statNodes"),
     statLinks: document.getElementById("statLinks"),
     statMode: document.getElementById("statMode"),
-    linkMode: document.getElementById("linkMode"),
+
     minShared: document.getElementById("minShared"),
     charge: document.getElementById("charge"),
     recenter: document.getElementById("recenter"),
@@ -39,17 +39,13 @@ export function initCollapsibles(){
 export function updateStats(ui, state){
   ui.statNodes.textContent = String(state.nodes.length);
   ui.statLinks.textContent = String(state.links.length);
-  ui.statMode.textContent =
-    state.linkMode === "erc" ? "ERC" :
-    state.linkMode === "hceres" ? "HCERES" : "KEYWORDS";
+  ui.statMode.textContent = "KEYWORDS IA";
 }
 
 export function updateSelectedCounts(state){
-  ["erc","hceres","keywords"].forEach(k=>{
-    const n = state.selected[k].size;
-    const el = document.querySelector(`[data-count-for="${k}"]`);
-    if (el) el.textContent = `${n} sélection${n>1?"s":""}`;
-  });
+  const n = state.selected.kwia.size;
+  const el = document.querySelector(`[data-count-for="kwia"]`);
+  if (el) el.textContent = `${n} sélection${n>1?"s":""}`;
 }
 
 export function wireSearch(kind){
@@ -67,9 +63,7 @@ export function wireSearch(kind){
 }
 
 export function clearSelections(state){
-  state.selected.erc.clear();
-  state.selected.hceres.clear();
-  state.selected.keywords.clear();
+  state.selected.kwia.clear();
 
   document.querySelectorAll('.checklist input[type="checkbox"]').forEach(cb => cb.checked = false);
   document.querySelectorAll('.checklist input[type="text"]').forEach(t => t.value = "");
@@ -78,7 +72,8 @@ export function clearSelections(state){
   updateSelectedCounts(state);
 }
 
-export function buildChecklist(kind, values, state, onChange){
+export function buildChecklistKWIA(values, state, onChange){
+  const kind = "kwia";
   const container = document.querySelector(`[data-items="${kind}"]`);
   container.innerHTML = "";
 
@@ -98,17 +93,17 @@ export function buildChecklist(kind, values, state, onChange){
 
     const cb = wrap.querySelector("input");
     cb.addEventListener("change", (e)=>{
-      if (e.target.checked) state.selected[kind].add(v);
-      else state.selected[kind].delete(v);
+      if (e.target.checked) state.selected.kwia.add(v);
+      else state.selected.kwia.delete(v);
       onChange();
     });
 
     container.appendChild(wrap);
   });
 
-  // Compte labos par valeur
+  // Affiche combien de labos portent chaque mot-clé IA
   const mapCount = new Map();
-  state.nodesAll.forEach(n => n[kind].forEach(x => mapCount.set(x, (mapCount.get(x)||0)+1)));
+  state.nodesAll.forEach(n => n.kwia.forEach(x => mapCount.set(x, (mapCount.get(x)||0)+1)));
   container.querySelectorAll(".item").forEach(row=>{
     const main = row.querySelector(".txt")?.childNodes?.[0]?.textContent?.trim() || "";
     const sub = row.querySelector(".sub");
@@ -120,7 +115,6 @@ export function buildChecklist(kind, values, state, onChange){
 /* ---------- Recherche “humaine” UI ---------- */
 
 export function renderSuggestions(ui, items){
-  // items: [{label, count}]
   if (!items || items.length === 0){
     ui.suggestions.hidden = true;
     ui.suggestions.innerHTML = "";
@@ -147,10 +141,9 @@ export function renderSuggestions(ui, items){
 }
 
 export function renderResults(ui, results, totalMatches){
-  // results: [{id,title,group,score,degree,matchedFields}]
   if (!results || results.length === 0){
     ui.resultsMeta.textContent = totalMatches ? `${totalMatches} match(s)` : "—";
-    ui.resultsList.innerHTML = `<div class="results-empty">Aucun résultat. Essaie un autre terme.</div>`;
+    ui.resultsList.innerHTML = `<div class="results-empty">Aucun résultat. Essaie un autre mot-clé IA.</div>`;
     return;
   }
 
