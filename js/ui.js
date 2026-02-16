@@ -39,12 +39,12 @@ export function initCollapsibles(){
 export function updateStats(ui, state){
   ui.statNodes.textContent = String(state.nodes.length);
   ui.statLinks.textContent = String(state.links.length);
-  ui.statMode.textContent = "KEYWORDS IA";
+  ui.statMode.textContent = "keywords-ia";
 }
 
 export function updateSelectedCounts(state){
-  const n = state.selected.kwia.size;
-  const el = document.querySelector(`[data-count-for="kwia"]`);
+  const n = state.selected.keywords.size;
+  const el = document.querySelector(`[data-count-for="keywords"]`);
   if (el) el.textContent = `${n} sélection${n>1?"s":""}`;
 }
 
@@ -63,17 +63,14 @@ export function wireSearch(kind){
 }
 
 export function clearSelections(state){
-  state.selected.kwia.clear();
-
+  state.selected.keywords.clear();
   document.querySelectorAll('.checklist input[type="checkbox"]').forEach(cb => cb.checked = false);
   document.querySelectorAll('.checklist input[type="text"]').forEach(t => t.value = "");
   document.querySelectorAll(".checklist .item").forEach(row=> row.style.display = "flex");
-
   updateSelectedCounts(state);
 }
 
-export function buildChecklistKWIA(values, state, onChange){
-  const kind = "kwia";
+export function buildChecklist(kind, values, state, onChange){
   const container = document.querySelector(`[data-items="${kind}"]`);
   container.innerHTML = "";
 
@@ -93,17 +90,18 @@ export function buildChecklistKWIA(values, state, onChange){
 
     const cb = wrap.querySelector("input");
     cb.addEventListener("change", (e)=>{
-      if (e.target.checked) state.selected.kwia.add(v);
-      else state.selected.kwia.delete(v);
+      if (e.target.checked) state.selected[kind].add(v);
+      else state.selected[kind].delete(v);
       onChange();
     });
 
     container.appendChild(wrap);
   });
 
-  // Affiche combien de labos portent chaque mot-clé IA
+  // Compte labos par valeur (keywords-ia)
   const mapCount = new Map();
-  state.nodesAll.forEach(n => n.kwia.forEach(x => mapCount.set(x, (mapCount.get(x)||0)+1)));
+  state.nodesAll.forEach(n => n.keywords.forEach(x => mapCount.set(x, (mapCount.get(x)||0)+1)));
+
   container.querySelectorAll(".item").forEach(row=>{
     const main = row.querySelector(".txt")?.childNodes?.[0]?.textContent?.trim() || "";
     const sub = row.querySelector(".sub");
@@ -143,7 +141,7 @@ export function renderSuggestions(ui, items){
 export function renderResults(ui, results, totalMatches){
   if (!results || results.length === 0){
     ui.resultsMeta.textContent = totalMatches ? `${totalMatches} match(s)` : "—";
-    ui.resultsList.innerHTML = `<div class="results-empty">Aucun résultat. Essaie un autre mot-clé IA.</div>`;
+    ui.resultsList.innerHTML = `<div class="results-empty">Aucun résultat. Essaie un autre terme.</div>`;
     return;
   }
 

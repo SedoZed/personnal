@@ -3,9 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CartoExpert - Prototype</title>
+  <title>Plateforme de datavisualisation — Accueil</title>
 
   <link rel="stylesheet" href="./styles.css" />
+
+  <!-- D3 (global) -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 
@@ -13,16 +15,17 @@
   <div class="app">
     <aside class="panel">
       <header>
-        <h1><span class="dot"></span>Accueil — Réseau de laboratoires (IA)</h1>
+        <h1><span class="dot"></span>Accueil — Réseau de laboratoires</h1>
         <p>
           Chaque bulle = un laboratoire (<code>dcterms:title</code>).<br>
-          <b>Liens + recherche + filtres</b> basés sur <code>valo:keywords-ia</code>. Séparateur intra-champ : <code>|</code>.
+          Les liens + recherche + clusters utilisent uniquement <code>valo:keywords-ia</code>.
+          Séparateurs intra-champ : <code>|</code>.
         </p>
 
         <!-- Recherche expertise (humaine) -->
         <div class="expert-search">
           <div class="expert-row">
-            <input id="expertSearch" type="text" placeholder="Rechercher un mot-clé IA (ex: vision, NLP, data)…" autocomplete="off" />
+            <input id="expertSearch" type="text" placeholder="Rechercher une expertise (keywords-ia)…" autocomplete="off" />
             <button id="expertClear" title="Effacer">✕</button>
           </div>
 
@@ -30,15 +33,17 @@
             Suggestions + classement. Clique un résultat pour focus/zoom + surlignage réseau.
           </div>
 
+          <!-- Suggestions (autocomplete) -->
           <div class="suggestions" id="suggestions" hidden></div>
 
+          <!-- Résultats -->
           <div class="results">
             <div class="results-head">
               <strong>Résultats</strong>
               <span id="resultsMeta">—</span>
             </div>
             <div class="results-list" id="resultsList">
-              <div class="results-empty">Tape un mot-clé IA (ex: “vision”, “robotics”, “LLM”…)</div>
+              <div class="results-empty">Tape un terme (ex: “laser”, “AI”, “materials”…)</div>
             </div>
           </div>
         </div>
@@ -47,17 +52,17 @@
       <div class="controls">
         <div class="section" data-collapsible="false">
           <div class="section-head">
-            <strong>Réseau</strong>
-            <span>keywords-ia</span>
+            <strong>Liens (keywords-ia)</strong>
+            <span>réglages</span>
           </div>
           <div class="section-body">
             <div class="row">
               <div>
                 <label for="minShared">Seuil “en commun”</label>
                 <select id="minShared">
-                  <option value="1" selected>≥ 1 mot-clé IA</option>
-                  <option value="2">≥ 2 mots-clés IA</option>
-                  <option value="3">≥ 3 mots-clés IA</option>
+                  <option value="1" selected>≥ 1 mot-clé</option>
+                  <option value="2">≥ 2 mots-clés</option>
+                  <option value="3">≥ 3 mots-clés</option>
                 </select>
               </div>
               <div>
@@ -72,7 +77,7 @@
 
             <div class="btnbar">
               <button class="primary" id="recenter">Recentrer</button>
-              <button id="clearAll">Effacer filtres</button>
+              <button id="clearAll">Réinitialiser</button>
             </div>
 
             <div class="hint">
@@ -81,18 +86,18 @@
           </div>
         </div>
 
-        <!-- Un seul filtre : Keywords IA -->
-        <div class="section" id="sec-kwia">
+        <!-- Filtre unique sur keywords-ia -->
+        <div class="section" id="sec-keywords">
           <div class="section-head">
             <strong>Filtre — Keywords IA</strong>
-            <span class="count" data-count-for="kwia">0 sélection</span>
+            <span class="count" data-count-for="keywords">0 sélection</span>
           </div>
           <div class="section-body">
-            <div class="checklist" data-list="kwia">
+            <div class="checklist" data-list="keywords">
               <div class="search">
-                <input type="text" placeholder="Rechercher un mot-clé IA…" data-search="kwia" />
+                <input type="text" placeholder="Rechercher un mot-clé IA…" data-search="keywords" />
               </div>
-              <div class="items" data-items="kwia"></div>
+              <div class="items" data-items="keywords"></div>
             </div>
           </div>
         </div>
@@ -101,7 +106,7 @@
       <div class="stats">
         <div class="statline"><span>Labos visibles</span> <b id="statNodes">0</b></div>
         <div class="statline"><span>Liens</span> <b id="statLinks">0</b></div>
-        <div class="statline"><span>Champ</span> <b id="statMode">KEYWORDS IA</b></div>
+        <div class="statline"><span>Source</span> <b id="statMode">keywords-ia</b></div>
       </div>
     </aside>
 
@@ -115,7 +120,7 @@
 
       <div class="legend">
         <span class="pill"><span class="swatch"></span>Laboratoire</span>
-        <span class="pill"><span class="swatch link"></span>Lien (keywords IA en commun)</span>
+        <span class="pill"><span class="swatch link"></span>Lien (keywords-ia en commun)</span>
       </div>
 
       <div class="tooltip" id="tooltip"></div>

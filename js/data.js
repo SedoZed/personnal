@@ -8,34 +8,26 @@ export function buildAllNodes(rows){
     title: (r[COLS.title] || "").trim(),
     alt: (r[COLS.alt] || "").trim(),
     axe: splitMulti(r[COLS.axe]),
-
-    // on garde au besoin, mais non utilisés par la dataviz “IA”
-    erc: splitMulti(r[COLS.erc]),
-    hceres: splitMulti(r[COLS.hceres]),
-    keywords: splitMulti(r[COLS.keywords]),
-
-    // >>> SOURCE PRINCIPALE <<<
-    kwia: splitMulti(r[COLS.keywordsIA]),
-
+    // IMPORTANT : keywords = keywords-ia (on garde le nom "keywords" pour minimiser les changements)
+    keywords: splitMulti(r[COLS.keywordsIA]),
     email: (r[COLS.email] || "").trim(),
-
     group: "∅"
   }));
 }
 
+// Taille des bulles : uniquement keywords-ia (+ un petit bonus axes si tu veux)
 export function computeRadius(node){
-  // Taille basée sur le nombre de keywords IA (plus lisible)
-  const k = node.kwia.length;
-  return clamp(12 + 2.2*k, 12, 44);
+  const k = node.keywords.length;
+  const a = node.axe.length;
+  return clamp(12 + 1.8*k + 0.6*a, 12, 52);
 }
 
 export function buildLinks(nodes, minShared){
-  // liens = intersection sur kwia uniquement
   const links = [];
   for (let i=0;i<nodes.length;i++){
     for (let j=i+1;j<nodes.length;j++){
-      const a = nodes[i].kwia;
-      const b = nodes[j].kwia;
+      const a = nodes[i].keywords;
+      const b = nodes[j].keywords;
       const w = intersectCount(a,b);
       if (w >= minShared){
         links.push({ source: nodes[i].id, target: nodes[j].id, weight: w });
@@ -46,10 +38,10 @@ export function buildLinks(nodes, minShared){
 }
 
 /**
- * Groupe dominant structurel (sur kwia):
- * pour chaque nœud, choisir le keyword IA qui génère le plus de connexions.
+ * Famille “dominante” structurelle :
+ * pour chaque nœud, choisir le mot-clé IA qui maximise les connexions via ce mot-clé.
  */
-export function computeDominantGroupKWIA(nodes){
+export function computeDominantGroup(nodes){
   const n = nodes.length;
   const perNodeScore = new Map();
   for (const node of nodes) perNodeScore.set(node.id, new Map());
@@ -58,9 +50,9 @@ export function computeDominantGroupKWIA(nodes){
     for (let j=i+1;j<n;j++){
       const A = nodes[i];
       const B = nodes[j];
-      const setA = new Set(A.kwia);
+      const setA = new Set(A.keywords);
 
-      for (const d of B.kwia){
+      for (const d of B.keywords){
         if (!setA.has(d)) continue;
         perNodeScore.get(A.id).set(d, (perNodeScore.get(A.id).get(d)||0) + 1);
         perNodeScore.get(B.id).set(d, (perNodeScore.get(B.id).get(d)||0) + 1);
@@ -70,26 +62,29 @@ export function computeDominantGroupKWIA(nodes){
 
   for (const node of nodes){
     const map = perNodeScore.get(node.id);
+
+    // pas de connexions -> fallback = premier keyword-ia si dispo
     if (!map || map.size === 0){
-      node.group = (node.kwia && node.kwia.length) ? node.kwia[0] : "∅";
+      node.group = node.keywords.length ? node.keywords[0] : "∅";
       continue;
     }
 
     let best = null;
     let bestScore = -1;
-    for (const d of node.kwia){
+    for (const d of node.keywords){
       const s = map.get(d) || 0;
       if (s > bestScore){
         bestScore = s;
         best = d;
       }
     }
-    node.group = best || ((node.kwia && node.kwia.length) ? node.kwia[0] : "∅");
+    node.group = best || (node.keywords.length ? node.keywords[0] : "∅");
   }
 }
 
-export function buildThemeCountsKWIA(nodesAll){
-  const counts = new Map();
+export function buildThemeCounts(nodesAll){
+  // index global (autocomplete) uniquement sur keywords-ia
+  const counts = new Map(); // themeLower -> { label, count }
   const add = (label) => {
     const t = String(label).trim();
     if (!t) return;
@@ -99,6 +94,9 @@ export function buildThemeCountsKWIA(nodesAll){
     else counts.set(k, { label: prev.label, count: prev.count + 1 });
   };
 
-  nodesAll.forEach(n => n.kwia.forEach(add));
+  nodesAll.forEach(n=>{
+    n.keywords.forEach(add);
+  });
+
   return counts;
 }

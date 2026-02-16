@@ -4,19 +4,19 @@ export const state = {
   nodes: [],
   links: [],
 
-  // On fixe le “mode” : keywords IA partout
-  linkMode: "kwia",
+  // plus de linkMode : source unique = keywords-ia
   minShared: 1,
   charge: -300,
 
+  // filtre unique : keywords-ia
   selected: {
-    kwia: new Set(),
+    keywords: new Set(),
   },
 
   values: {
-    kwia: []
+    keywords: []
   },
 
-  // autocomplete (keywords IA uniquement)
+  // autocomplete uniquement sur keywords-ia
   themeCounts: new Map(), // themeLower -> { label, count }
 };
