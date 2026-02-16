@@ -8,12 +8,17 @@ export function createGraph(ui){
   const zoom = d3.zoom()
     .scaleExtent([0.25, 5])
     .on("zoom", (event) => gRoot.attr("transform", event.transform));
-
   ui.svg.call(zoom);
 
   let simulation = null;
   let linkSel = null;
   let nodeSel = null;
+
+  // sélection courante
+  let selectedId = null;
+
+  // Couleurs par groupe
+  const color = d3.scaleOrdinal(d3.schemeTableau10);
 
   function size(){
     const rect = ui.viz.getBoundingClientRect();
@@ -36,11 +41,11 @@ export function createGraph(ui){
       const more = arr.length > max ? ` <span class="chip">+${arr.length-max}</span>` : "";
       return a.map(x => `<span class="chip">${escapeHTML(x)}</span>`).join("") + more;
     };
-
     const alt = d.alt ? `<div class="v">${escapeHTML(d.alt)}</div>` : `<div class="v"><em style="color:var(--muted)">—</em></div>`;
     const email = d.email ? `<div class="v">${escapeHTML(d.email)}</div>` : `<div class="v"><em style="color:var(--muted)">—</em></div>`;
     return `
       <div class="t">${escapeHTML(d.title || "(Sans titre)")}</div>
+      <div class="k">Groupe</div><div class="v">${escapeHTML(d.group || "∅")}</div>
       <div class="k">Alternative</div>${alt}
       <div class="k">RNSR</div><div class="v">${escapeHTML(d.id)}</div>
       <div class="k">Axes</div><div class="v">${chips(d.axe, 8) || `<em style="color:var(--muted)">—</em>`}</div>
@@ -51,51 +56,100 @@ export function createGraph(ui){
     `;
   }
 
-  /**
-   * Rendu stable/compact :
-   * - forceX/forceY = "gravité" vers le centre (empêche l'éparpillement sans liens)
-   * - charge auto-adaptée selon la densité de liens
-   * - collision un peu moins "gonflante"
-   */
+  function computeClusterCenters(nodes, w, h){
+    // centres disposés sur un cercle -> aère naturellement les groupes
+    const groups = Array.from(new Set(nodes.map(n => n.group || "∅")));
+    const cx = w/2, cy = h/2;
+    const R = Math.min(w, h) * 0.28; // rayon du cercle des clusters
+
+    const centers = new Map();
+    const m = Math.max(groups.length, 1);
+    groups.forEach((g, i) => {
+      const a = (i / m) * Math.PI * 2;
+      centers.set(g, { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) });
+    });
+    return centers;
+  }
+
+  function buildAdjacency(links){
+    // Map id -> Set(ids voisins)
+    const adj = new Map();
+    const touch = (a,b)=>{
+      if (!adj.has(a)) adj.set(a, new Set());
+      adj.get(a).add(b);
+    };
+    links.forEach(l=>{
+      const s = typeof l.source === "object" ? l.source.id : l.source;
+      const t = typeof l.target === "object" ? l.target.id : l.target;
+      touch(s,t); touch(t,s);
+    });
+    return adj;
+  }
+
+  function applyHighlight(adj){
+    if (!selectedId){
+      nodeSel.classed("dimmed", false).classed("highlight", false).classed("selected", false);
+      linkSel.classed("dimmed", false).classed("highlight", false);
+      return;
+    }
+
+    const neigh = adj.get(selectedId) || new Set();
+    nodeSel
+      .classed("selected", d => d.id === selectedId)
+      .classed("highlight", d => d.id === selectedId || neigh.has(d.id))
+      .classed("dimmed", d => !(d.id === selectedId || neigh.has(d.id)));
+
+    linkSel
+      .classed("highlight", l => {
+        const s = typeof l.source === "object" ? l.source.id : l.source;
+        const t = typeof l.target === "object" ? l.target.id : l.target;
+        return s === selectedId || t === selectedId;
+      })
+      .classed("dimmed", l => {
+        const s = typeof l.source === "object" ? l.source.id : l.source;
+        const t = typeof l.target === "object" ? l.target.id : l.target;
+        return !(s === selectedId || t === selectedId);
+      });
+  }
+
   function render(nodes, links, baseChargeStrength){
     const {w,h} = size();
     const cx = w/2, cy = h/2;
 
     if (simulation) simulation.stop();
 
-    // Densité simple
+    // Clusters
+    const centers = computeClusterCenters(nodes, w, h);
+
+    // Densité -> ajuste répulsion / gravité
     const n = nodes.length || 1;
     const maxLinks = (n * (n - 1)) / 2;
     const density = maxLinks > 0 ? (links.length / maxLinks) : 0;
+    const d = clamp(density * 6, 0, 1);
 
-    // Si pas (ou très peu) de liens => réduire la répulsion (sinon ça explose)
-    // baseChargeStrength est négatif (ex: -320). On le rapproche de 0 quand density est faible.
-    // density ∈ [0..~], on clamp à 0..1 pour l'interp.
-    const d = clamp(density * 6, 0, 1); // 0 = pas de liens ; 1 = assez de liens
     const chargeStrength = Math.round(baseChargeStrength * (0.35 + 0.65 * d));
-    // ex: -320 -> ~ -112 sans liens, -320 quand dense
+    const gravity = 0.08 + (1 - d) * 0.12;
 
-    // "Gravité" vers le centre : plus forte si peu de liens
-    const gravity = 0.08 + (1 - d) * 0.16; // 0.08..0.24
-
-    // Distance des liens (si présents) : plus courte => plus compact
-    const linkDistance = (wgt) => clamp(85 - 14*(wgt-1), 42, 110);
+    // Liens plus longs + moins “forts” = plus aéré
+    const linkDistance = (wgt) => clamp(130 - 12*(wgt-1), 70, 170);
 
     simulation = d3.forceSimulation(nodes)
       .force("link", d3.forceLink(links)
         .id(d => d.id)
         .distance(d => linkDistance(d.weight))
-        .strength(d => clamp(0.12 + 0.07*d.weight, 0.12, 0.45))
+        .strength(d => clamp(0.07 + 0.04*d.weight, 0.07, 0.25))
       )
       .force("charge", d3.forceManyBody().strength(chargeStrength))
       .force("center", d3.forceCenter(cx, cy))
-      // <--- AJOUT : gravité vers centre
+      // Gravité globale
       .force("x", d3.forceX(cx).strength(gravity))
       .force("y", d3.forceY(cy).strength(gravity))
-      // collision un peu plus serrée
-      .force("collide", d3.forceCollide().radius(d => d.r + 2).iterations(2));
+      // Clustering par groupe (groupe = valeur dominante du mode)
+      .force("clusterX", d3.forceX(d => (centers.get(d.group || "∅")?.x ?? cx)).strength(0.18))
+      .force("clusterY", d3.forceY(d => (centers.get(d.group || "∅")?.y ?? cy)).strength(0.18))
+      .force("collide", d3.forceCollide().radius(d => d.r + 3).iterations(2));
 
-    // LINKS
+    // LINKS (discrets par défaut)
     linkSel = gLinks.selectAll("line")
       .data(links, d => `${d.source}->${d.target}`);
 
@@ -103,9 +157,10 @@ export function createGraph(ui){
 
     linkSel = linkSel.enter()
       .append("line")
-      .attr("stroke", "rgba(255,255,255,.24)")
-      .attr("stroke-width", d => 0.9 + Math.sqrt(d.weight))
+      .attr("stroke", "rgba(255,255,255,.22)")
+      .attr("stroke-width", d => 0.7 + Math.sqrt(d.weight))
       .attr("stroke-linecap","round")
+      .attr("opacity", 0.10)
       .merge(linkSel);
 
     // NODES
@@ -141,16 +196,24 @@ export function createGraph(ui){
       .on("mouseleave", () => {
         ui.tooltip.style.opacity = 0;
         ui.tooltip.style.transform = "translateY(6px)";
+      })
+      .on("click", (event, d) => {
+        // toggle sélection
+        selectedId = (selectedId === d.id) ? null : d.id;
+        const adj = buildAdjacency(links);
+        applyHighlight(adj);
       });
 
     nodeEnter.append("circle")
       .attr("r", d => d.r)
       .attr("fill", d => {
-        const score = d.erc.length + d.hceres.length + d.keywords.length;
-        const a = clamp(0.22 + score*0.006, 0.22, 0.55);
-        return `rgba(122,162,255,${a})`;
+        const g = d.group || "∅";
+        // couleur par groupe (avec alpha pour rester soft)
+        // ex: "rgb(...)" -> "rgba(...,0.35)"
+        const c = d3.color(color(g));
+        return `rgba(${c.r},${c.g},${c.b},0.35)`;
       })
-      .attr("stroke", "rgba(255,255,255,.30)")
+      .attr("stroke", "rgba(255,255,255,.26)")
       .attr("stroke-width", 1.1);
 
     nodeEnter.append("text")
@@ -163,6 +226,10 @@ export function createGraph(ui){
       .text(d => shortTitle(d.title));
 
     nodeSel = nodeEnter.merge(nodeSel);
+
+    // réapplique le highlight après rerender (si un labo est déjà sélectionné)
+    const adjAtStart = buildAdjacency(links);
+    applyHighlight(adjAtStart);
 
     simulation.on("tick", ()=>{
       linkSel
@@ -193,8 +260,6 @@ export function createGraph(ui){
     const {w,h} = size();
     if (simulation){
       simulation.force("center", d3.forceCenter(w/2, h/2));
-      simulation.force("x", d3.forceX(w/2));
-      simulation.force("y", d3.forceY(h/2));
       simulation.alpha(0.25).restart();
     }
   });

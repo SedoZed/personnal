@@ -21,6 +21,14 @@ function applyFiltersAndRender(){
   });
 
   state.nodes.forEach(n => { n.r = computeRadius(n); });
+
+  // Groupe = valeur dominante selon le mode de lien (pour clusters/couleurs)
+  const key = state.linkMode; // "erc" | "hceres" | "keywords"
+  state.nodes.forEach(n => {
+    n.group = (n[key] && n[key].length) ? n[key][0] : "∅";
+  });
+
+
   state.links = buildLinks(state.nodes, state.linkMode, state.minShared);
 
   updateStats(ui, state);
