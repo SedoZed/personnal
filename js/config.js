@@ -1,4 +1,6 @@
-export const CSV_PATH = "./database-test.csv";
+// Résolution robuste des assets pour GitHub Pages (project pages inclus)
+export const CSV_URL = new URL("../database-test.csv", import.meta.url);
+
 
 export const COLS = {
   title: "dcterms:title",

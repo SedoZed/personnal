@@ -1,4 +1,4 @@
-import { CSV_PATH } from "./config.js";
+import { CSV_URL } from "./config.js";
 import { uniq, tokenizeQuery } from "./utils.js";
 import { state } from "./state.js";
 import {
@@ -232,7 +232,7 @@ async function init(){
   initCollapsibles();
   wireControls();
 
-  const rows = await d3.csv(CSV_PATH, d3.autoType);
+  const rows = await d3.csv(CSV_URL.href, d3.autoType);
   state.raw = rows;
 
   state.nodesAll = buildAllNodes(rows);
@@ -257,5 +257,9 @@ async function init(){
 
 init().catch(err=>{
   console.error(err);
-  alert("Erreur au chargement du CSV. Vérifie que database-test.csv est à la racine et servi via HTTP (GitHub Pages).");
+  alert(
+    "Erreur au chargement du CSV.\n\n" +
+    "Vérifie que database-test.csv est bien au même niveau que index.html.\n" +
+    "Astuce: ouvre la console (F12) pour voir l’erreur exacte."
+  );
 });
