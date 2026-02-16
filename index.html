@@ -3,8 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Plateforme de datavisualisation — Accueil</title>
-  <link rel="stylesheet" href="resource/styles.css" />
+  <title>DataViz Explorer — Viz 2</title>
+
+  <link rel="stylesheet" href="./styles.css" />
+
+  <!-- D3 en global (utilisé dans les modules ES) -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 
@@ -15,24 +18,23 @@
 
       <nav class="tabs" aria-label="Navigation">
         <a href="./viz1.html" class="tab">Viz 1</a>
-        <a href="./index.html" class="tab is-active">Viz 2 — sélectionné</a>
+        <a href="./index.html" class="tab is-active">Viz 2 — Réseau</a>
         <a href="./viz3.html" class="tab">Viz 3</a>
         <a href="./quali.html" class="tab">Quali</a>
       </nav>
     </header>
 
     <section class="vizHeader">
-      <h2>Visualisation 2 — Bulles & liens</h2>
-      <button id="howtoBtn" class="howtoBtn" type="button">ⓘ Comment lire cette visualisation ?</button>
+      <h2>Visualisation — Bulles & liens</h2>
+      <button id="howtoBtn" class="howtoBtn" type="button">ⓘ Comment lire ?</button>
     </section>
 
     <p class="lead">
-      Chaque bulle représente un laboratoire. Deux bulles sont reliées lorsqu’elles partagent au moins une valeur
-      (ERC / HCERES / keywords selon le mode). Le seuil augmente le niveau de similarité requis.
+      Chaque bulle représente un laboratoire (<code>dcterms:title</code>). Les liens représentent des valeurs en commun
+      (ERC / HCERES / keywords selon le mode). Dans le CSV, les valeurs multiples sont séparées par <code>|</code>.
     </p>
 
     <section class="layout">
-      <!-- CONTROLS -->
       <aside class="controlsCard">
         <div class="field">
           <label for="linkMode">Source des liens</label>
@@ -44,7 +46,7 @@
         </div>
 
         <div class="field">
-          <label for="minShared">Seuil lien (≥)</label>
+          <label for="minShared">Seuil lien (≥ valeurs en commun)</label>
           <select id="minShared">
             <option value="1" selected>1</option>
             <option value="2">2</option>
@@ -53,20 +55,40 @@
         </div>
 
         <div class="field">
-          <label for="charge">Densité</label>
+          <label for="charge">Densité (répulsion)</label>
           <select id="charge">
-            <option value="-420">Plus compact</option>
-            <option value="-320" selected>Équilibré</option>
-            <option value="-240">Plus aéré</option>
+            <option value="-260">Plus aéré</option>
+            <option value="-180" selected>Équilibré</option>
+            <option value="-120">Très compact</option>
           </select>
         </div>
 
         <div class="btnRow">
           <button class="btn" id="recenter">Recentrer</button>
-          <button class="btn btnGhost" id="clearAll">Reset</button>
+          <button class="btn btnGhost" id="clearAll">Reset filtres</button>
         </div>
 
-        <!-- tes filtres (ERC/HCERES/keywords) peuvent rester ici, en dessous -->
+        <!-- Recherche + shortlist + export -->
+        <div class="sectionLite">
+          <div class="field">
+            <label for="labSearch">Rechercher un labo</label>
+            <input id="labSearch" type="text" placeholder="Nom, ERC, HCERES, keyword…" autocomplete="off" />
+            <div class="hintMini">Entrée = zoom + focus · Échap = reset</div>
+          </div>
+
+          <div class="btnRow">
+            <button class="btn" id="exportVisible">Exporter (labos visibles)</button>
+            <button class="btn btnGhost" id="resetFocus">Reset focus</button>
+          </div>
+
+          <div class="resultsHead">
+            <div>Résultats</div>
+            <div class="muted"><span id="resultsCount">0</span></div>
+          </div>
+          <div class="resultsList" id="resultsList"></div>
+        </div>
+
+        <!-- Filtres -->
         <div class="filters">
           <details open>
             <summary>Filtrer — ERC <span class="count" data-count-for="erc">0 sélection</span></summary>
@@ -106,7 +128,6 @@
         </div>
       </aside>
 
-      <!-- VIZ -->
       <main class="vizCard" id="viz">
         <svg id="svg" aria-label="Réseau de laboratoires"></svg>
         <div class="tooltip" id="tooltip"></div>
@@ -114,5 +135,24 @@
     </section>
   </div>
 
-  <script type="module" src="resource/main.js"></script>
+  <!-- Modal -->
+  <div class="modal" id="howtoModal" hidden>
+    <div class="modal-backdrop" data-close="1"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="howtoTitle">
+      <h2 id="howtoTitle">Comment lire cette visualisation ?</h2>
+      <p>
+        Chaque bulle est un laboratoire. Deux labos sont reliés s’ils partagent des valeurs en commun
+        (ERC / HCERES / keywords selon le mode).
+      </p>
+      <ul>
+        <li>Survol : met en évidence un labo + ses voisins.</li>
+        <li>Clic : verrouille le focus (re-clic = déverrouille).</li>
+        <li>Molette / pinch : zoom. Glisser : déplacer la vue. Drag nœud : déplacer une bulle.</li>
+      </ul>
+      <button class="btn" id="howtoClose">Fermer</button>
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
 </body>
+</html>

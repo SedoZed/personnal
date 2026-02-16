@@ -1,3 +1,4 @@
+// Chemin relatif à index.html (IMPORTANT sur GitHub Pages: pas de / au début)
 export const CSV_PATH = "resource/datas/database-test.csv";
 
 export const COLS = {

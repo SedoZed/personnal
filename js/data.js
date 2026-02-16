@@ -16,10 +16,11 @@ export function buildAllNodes(rows){
 }
 
 export function computeRadius(node){
+  // plus homogène => réseau moins “éclaté”
   const k = node.keywords.length;
   const e = node.erc.length;
   const h = node.hceres.length;
-  return clamp(10 + 1.2*k + 1.6*e + 1.1*h, 12, 44);
+  return clamp(8 + 0.9*k + 1.1*e + 0.8*h, 10, 30);
 }
 
 export function buildLinks(nodes, mode, minShared){

@@ -1,7 +1,6 @@
-// Split robuste : " | " ou "|"
 export function splitMulti(v){
   if (!v) return [];
-  const s = String(v).replace(/\uFEFF/g,"").trim(); // BOM
+  const s = String(v).replace(/\uFEFF/g,"").trim();
   if (!s) return [];
   return s.split(/\s*\|\s*/g).map(x => x.trim()).filter(Boolean);
 }
@@ -24,8 +23,8 @@ export function clamp(x, a, b){
 
 export function shortTitle(t){
   const s = (t || "").trim();
-  if (s.length <= 12) return s;
-  return s.slice(0, 10) + "…";
+  if (s.length <= 14) return s;
+  return s.slice(0, 12) + "…";
 }
 
 export function escapeHTML(s){

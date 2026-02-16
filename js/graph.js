@@ -15,6 +15,9 @@ export function createGraph(ui){
   let linkSel = null;
   let nodeSel = null;
 
+  let focusedId = null;
+  let currentNeighbors = new Map();
+
   function size(){
     const rect = ui.viz.getBoundingClientRect();
     ui.svg.attr("viewBox", `0 0 ${rect.width} ${rect.height}`);
@@ -30,10 +33,77 @@ export function createGraph(ui){
     }
   }
 
+  function neighborsMap(links){
+    const m = new Map();
+    const add = (a,b)=>{
+      if (!m.has(a)) m.set(a, new Set());
+      m.get(a).add(b);
+    };
+    links.forEach(l=>{
+      const s = (typeof l.source === "object") ? l.source.id : l.source;
+      const t = (typeof l.target === "object") ? l.target.id : l.target;
+      add(s,t); add(t,s);
+    });
+    return m;
+  }
+
+  function applyHighlight(targetId){
+    if (!nodeSel || !linkSel) return;
+    const neigh = currentNeighbors.get(targetId) || new Set();
+
+    nodeSel
+      .classed("dim", d => !(d.id === targetId || neigh.has(d.id)))
+      .classed("hl", d => (d.id === targetId || neigh.has(d.id)));
+
+    linkSel
+      .classed("dim-link", l => {
+        const s = (typeof l.source === "object") ? l.source.id : l.source;
+        const t = (typeof l.target === "object") ? l.target.id : l.target;
+        return !(s === targetId || t === targetId);
+      })
+      .classed("hl-link", l => {
+        const s = (typeof l.source === "object") ? l.source.id : l.source;
+        const t = (typeof l.target === "object") ? l.target.id : l.target;
+        return (s === targetId || t === targetId);
+      });
+  }
+
+  function clearHighlight(){
+    if (!nodeSel || !linkSel) return;
+    nodeSel.classed("dim", false).classed("hl", false);
+    linkSel.classed("dim-link", false).classed("hl-link", false);
+  }
+
+  function focusNode(id){
+    focusedId = id;
+    applyHighlight(id);
+  }
+
+  function clearFocus(){
+    focusedId = null;
+    clearHighlight();
+  }
+
+  function zoomToNode(id){
+    if (!simulation) return;
+    const n = simulation.nodes().find(d => d.id === id);
+    if (!n) return;
+
+    const rect = ui.viz.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+
+    const k = 1.6;
+    const tx = w/2 - n.x * k;
+    const ty = h/2 - n.y * k;
+
+    ui.svg.transition().duration(450)
+      .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
+  }
+
   function tooltipHTML(d){
     const chips = (arr, max=10) => {
-      const a = arr.slice(0, max);
-      const more = arr.length > max ? ` <span class="chip">+${arr.length-max}</span>` : "";
+      const a = (arr||[]).slice(0, max);
+      const more = (arr||[]).length > max ? ` <span class="chip">+${arr.length-max}</span>` : "";
       return a.map(x => `<span class="chip">${escapeHTML(x)}</span>`).join("") + more;
     };
 
@@ -56,15 +126,20 @@ export function createGraph(ui){
 
     if (simulation) simulation.stop();
 
+    // recalcul voisins
+    currentNeighbors = neighborsMap(links);
+
     simulation = d3.forceSimulation(nodes)
       .force("link", d3.forceLink(links)
         .id(d => d.id)
-        .distance(d => clamp(120 - 18*(d.weight-1), 50, 160))
-        .strength(d => clamp(0.10 + 0.06*d.weight, 0.10, 0.40))
+        .distance(d => clamp(60 - 6*(d.weight-1), 30, 80))
+        .strength(d => clamp(0.25 + 0.08*d.weight, 0.25, 0.6))
       )
       .force("charge", d3.forceManyBody().strength(chargeStrength))
       .force("center", d3.forceCenter(w/2, h/2))
-      .force("collide", d3.forceCollide().radius(d => d.r + 4).iterations(2));
+      .force("collide", d3.forceCollide().radius(d => d.r + 2).iterations(2))
+      .force("x", d3.forceX(w/2).strength(0.04))
+      .force("y", d3.forceY(h/2).strength(0.04));
 
     // LINKS
     linkSel = gLinks.selectAll("line")
@@ -74,7 +149,7 @@ export function createGraph(ui){
 
     linkSel = linkSel.enter()
       .append("line")
-      .attr("stroke", "rgba(255,255,255,.24)")
+      .attr("stroke", "rgba(15,23,42,.20)")
       .attr("stroke-width", d => 0.9 + Math.sqrt(d.weight))
       .attr("stroke-linecap","round")
       .merge(linkSel);
@@ -97,6 +172,7 @@ export function createGraph(ui){
         ui.tooltip.style.opacity = 1;
         ui.tooltip.style.transform = "translateY(0px)";
         ui.tooltip.innerHTML = tooltipHTML(d);
+        if (!focusedId) applyHighlight(d.id);
       })
       .on("mousemove", (event) => {
         const pad = 14;
@@ -112,29 +188,41 @@ export function createGraph(ui){
       .on("mouseleave", () => {
         ui.tooltip.style.opacity = 0;
         ui.tooltip.style.transform = "translateY(6px)";
+        if (!focusedId) clearHighlight();
+      })
+      .on("click", (event, d) => {
+        event.stopPropagation();
+        if (focusedId === d.id) {
+          clearFocus();
+        } else {
+          focusNode(d.id);
+          zoomToNode(d.id);
+        }
       });
 
     nodeEnter.append("circle")
       .attr("r", d => d.r)
       .attr("fill", d => {
-        const score = d.erc.length + d.hceres.length + d.keywords.length;
-        const a = clamp(0.22 + score*0.006, 0.22, 0.55);
-        return `rgba(122,162,255,${a})`;
+        // plus lisible en thème clair
+        const score = (d.erc?.length||0) + (d.hceres?.length||0) + (d.keywords?.length||0);
+        const a = clamp(0.55 + score*0.01, 0.55, 0.9);
+        return `rgba(37,99,235,${a})`;
       })
-      .attr("stroke", "rgba(255,255,255,.30)")
-      .attr("stroke-width", 1.1);
+      .attr("stroke", "rgba(15,23,42,.35)")
+      .attr("stroke-width", 1.2);
 
     nodeEnter.append("text")
       .attr("text-anchor","middle")
       .attr("dominant-baseline","central")
       .attr("pointer-events","none")
-      .attr("fill","rgba(231,236,255,.95)")
-      .style("font-weight", 800)
+      .attr("fill","rgba(15,23,42,.92)")
+      .style("font-weight", 900)
       .style("font-size", "10px")
       .text(d => shortTitle(d.title));
 
     nodeSel = nodeEnter.merge(nodeSel);
 
+    // tick
     simulation.on("tick", ()=>{
       linkSel
         .attr("x1", d => d.source.x)
@@ -146,6 +234,9 @@ export function createGraph(ui){
     });
 
     simulation.alpha(1).restart();
+
+    // si focus existant, le ré-appliquer après rerender
+    if (focusedId) applyHighlight(focusedId);
   }
 
   function dragStarted(event, d){
@@ -160,6 +251,9 @@ export function createGraph(ui){
     d.fx = null; d.fy = null;
   }
 
+  // reset focus au clic dans le vide
+  ui.svg.on("click", () => clearFocus());
+
   window.addEventListener("resize", ()=>{
     const {w,h} = size();
     if (simulation){
@@ -168,5 +262,5 @@ export function createGraph(ui){
     }
   });
 
-  return { render, recenter, size };
+  return { render, recenter, size, focusNode, clearFocus, zoomToNode };
 }
