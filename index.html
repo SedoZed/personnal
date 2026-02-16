@@ -3,156 +3,142 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>DataViz Explorer — Viz 2</title>
+  <title>Plateforme de datavisualisation — Accueil</title>
 
+  <!-- CSS -->
   <link rel="stylesheet" href="./styles.css" />
 
-  <!-- D3 en global (utilisé dans les modules ES) -->
+  <!-- D3 -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 
 <body>
-  <div class="page">
-    <header class="siteHeader">
-      <h1>DataViz Explorer</h1>
+  <div class="app">
+    <aside class="panel">
+      <header>
+        <h1><span class="dot"></span>Accueil — Réseau de laboratoires</h1>
+        <p>
+          Chaque bulle = un laboratoire (<code>dcterms:title</code>).<br>
+          Les liens sont calculés par “valeurs en commun” (par défaut <code>valo:domaineErc</code>).<br>
+          Dans le CSV, les séparateurs intra-champ sont <code>|</code> (avec ou sans espaces).
+        </p>
+      </header>
 
-      <nav class="tabs" aria-label="Navigation">
-        <a href="./viz1.html" class="tab">Viz 1</a>
-        <a href="./index.html" class="tab is-active">Viz 2 — Réseau</a>
-        <a href="./viz3.html" class="tab">Viz 3</a>
-        <a href="./quali.html" class="tab">Quali</a>
-      </nav>
-    </header>
-
-    <section class="vizHeader">
-      <h2>Visualisation — Bulles & liens</h2>
-      <button id="howtoBtn" class="howtoBtn" type="button">ⓘ Comment lire ?</button>
-    </section>
-
-    <p class="lead">
-      Chaque bulle représente un laboratoire (<code>dcterms:title</code>). Les liens représentent des valeurs en commun
-      (ERC / HCERES / keywords selon le mode). Dans le CSV, les valeurs multiples sont séparées par <code>|</code>.
-    </p>
-
-    <section class="layout">
-      <aside class="controlsCard">
-        <div class="field">
-          <label for="linkMode">Source des liens</label>
-          <select id="linkMode">
-            <option value="erc" selected>valo:domaineErc</option>
-            <option value="hceres">valo:domaineHceres</option>
-            <option value="keywords">valo:keywords</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="minShared">Seuil lien (≥ valeurs en commun)</label>
-          <select id="minShared">
-            <option value="1" selected>1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="charge">Densité (répulsion)</label>
-          <select id="charge">
-            <option value="-260">Plus aéré</option>
-            <option value="-180" selected>Équilibré</option>
-            <option value="-120">Très compact</option>
-          </select>
-        </div>
-
-        <div class="btnRow">
-          <button class="btn" id="recenter">Recentrer</button>
-          <button class="btn btnGhost" id="clearAll">Reset filtres</button>
-        </div>
-
-        <!-- Recherche + shortlist + export -->
-        <div class="sectionLite">
-          <div class="field">
-            <label for="labSearch">Rechercher un labo</label>
-            <input id="labSearch" type="text" placeholder="Nom, ERC, HCERES, keyword…" autocomplete="off" />
-            <div class="hintMini">Entrée = zoom + focus · Échap = reset</div>
+      <div class="controls">
+        <div class="section" data-collapsible="false">
+          <div class="section-head">
+            <strong>Liens</strong>
+            <span>source des connexions</span>
           </div>
+          <div class="section-body">
+            <label for="linkMode">Relier les labos par :</label>
+            <select id="linkMode">
+              <option value="erc" selected>valo:domaineErc</option>
+              <option value="hceres">valo:domaineHceres</option>
+              <option value="keywords">valo:keywords</option>
+            </select>
 
-          <div class="btnRow">
-            <button class="btn" id="exportVisible">Exporter (labos visibles)</button>
-            <button class="btn btnGhost" id="resetFocus">Reset focus</button>
-          </div>
+            <div class="row" style="margin-top:10px;">
+              <div>
+                <label for="minShared">Seuil “en commun”</label>
+                <select id="minShared">
+                  <option value="1" selected>≥ 1 valeur</option>
+                  <option value="2">≥ 2 valeurs</option>
+                  <option value="3">≥ 3 valeurs</option>
+                </select>
+              </div>
+              <div>
+                <label for="charge">Distance / densité</label>
+                <select id="charge">
+                  <option value="-420">Plus compact</option>
+                  <option value="-320" selected>Équilibré</option>
+                  <option value="-240">Plus aéré</option>
+                </select>
+              </div>
+            </div>
 
-          <div class="resultsHead">
-            <div>Résultats</div>
-            <div class="muted"><span id="resultsCount">0</span></div>
+            <div class="btnbar">
+              <button class="primary" id="recenter">Recentrer</button>
+              <button id="clearAll">Effacer filtres</button>
+            </div>
+
+            <div class="hint">
+              Astuce : zoom molette / pinch, déplacer en glissant l’arrière-plan, drag & drop sur les bulles.
+            </div>
           </div>
-          <div class="resultsList" id="resultsList"></div>
         </div>
 
-        <!-- Filtres -->
-        <div class="filters">
-          <details open>
-            <summary>Filtrer — ERC <span class="count" data-count-for="erc">0 sélection</span></summary>
+        <div class="section" id="sec-erc">
+          <div class="section-head">
+            <strong>Filtre — ERC</strong>
+            <span class="count" data-count-for="erc">0 sélection</span>
+          </div>
+          <div class="section-body">
             <div class="checklist" data-list="erc">
               <div class="search">
                 <input type="text" placeholder="Rechercher un domaine ERC…" data-search="erc" />
               </div>
               <div class="items" data-items="erc"></div>
             </div>
-          </details>
+          </div>
+        </div>
 
-          <details>
-            <summary>Filtrer — HCERES <span class="count" data-count-for="hceres">0 sélection</span></summary>
+        <div class="section" id="sec-hceres">
+          <div class="section-head">
+            <strong>Filtre — HCERES</strong>
+            <span class="count" data-count-for="hceres">0 sélection</span>
+          </div>
+          <div class="section-body">
             <div class="checklist" data-list="hceres">
               <div class="search">
                 <input type="text" placeholder="Rechercher un domaine HCERES…" data-search="hceres" />
               </div>
               <div class="items" data-items="hceres"></div>
             </div>
-          </details>
+          </div>
+        </div>
 
-          <details>
-            <summary>Filtrer — Keywords <span class="count" data-count-for="keywords">0 sélection</span></summary>
+        <div class="section" id="sec-keywords">
+          <div class="section-head">
+            <strong>Filtre — Keywords</strong>
+            <span class="count" data-count-for="keywords">0 sélection</span>
+          </div>
+          <div class="section-body">
             <div class="checklist" data-list="keywords">
               <div class="search">
                 <input type="text" placeholder="Rechercher un mot-clé…" data-search="keywords" />
               </div>
               <div class="items" data-items="keywords"></div>
             </div>
-          </details>
+          </div>
         </div>
+      </div>
 
-        <div class="statsLine">
-          <span>Labos: <b id="statNodes">0</b></span>
-          <span>Liens: <b id="statLinks">0</b></span>
-          <span>Mode: <b id="statMode">ERC</b></span>
-        </div>
-      </aside>
+      <div class="stats">
+        <div class="statline"><span>Labos visibles</span> <b id="statNodes">0</b></div>
+        <div class="statline"><span>Liens</span> <b id="statLinks">0</b></div>
+        <div class="statline"><span>Mode de liens</span> <b id="statMode">ERC</b></div>
+      </div>
+    </aside>
 
-      <main class="vizCard" id="viz">
-        <svg id="svg" aria-label="Réseau de laboratoires"></svg>
-        <div class="tooltip" id="tooltip"></div>
-      </main>
-    </section>
+    <main class="viz" id="viz">
+      <div class="topbar">
+        <div class="badge"><span>Fichier :</span> <b>database-test.csv</b></div>
+        <div class="badge"><span>Drag</span> <b>bulles</b> · <span>Zoom</span> <b>molette</b></div>
+      </div>
+
+      <svg id="svg" aria-label="Réseau de laboratoires"></svg>
+
+      <div class="legend">
+        <span class="pill"><span class="swatch"></span>Laboratoire</span>
+        <span class="pill"><span class="swatch link"></span>Lien (valeurs en commun)</span>
+      </div>
+
+      <div class="tooltip" id="tooltip"></div>
+    </main>
   </div>
 
-  <!-- Modal -->
-  <div class="modal" id="howtoModal" hidden>
-    <div class="modal-backdrop" data-close="1"></div>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="howtoTitle">
-      <h2 id="howtoTitle">Comment lire cette visualisation ?</h2>
-      <p>
-        Chaque bulle est un laboratoire. Deux labos sont reliés s’ils partagent des valeurs en commun
-        (ERC / HCERES / keywords selon le mode).
-      </p>
-      <ul>
-        <li>Survol : met en évidence un labo + ses voisins.</li>
-        <li>Clic : verrouille le focus (re-clic = déverrouille).</li>
-        <li>Molette / pinch : zoom. Glisser : déplacer la vue. Drag nœud : déplacer une bulle.</li>
-      </ul>
-      <button class="btn" id="howtoClose">Fermer</button>
-    </div>
-  </div>
-
+  <!-- App -->
   <script type="module" src="./js/main.js"></script>
 </body>
 </html>

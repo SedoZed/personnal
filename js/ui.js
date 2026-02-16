@@ -16,6 +16,19 @@ export function getUI(){
   };
 }
 
+export function initCollapsibles(){
+  document.querySelectorAll(".section").forEach(sec=>{
+    const head = sec.querySelector(".section-head");
+    const body = sec.querySelector(".section-body");
+    if (!head || !body) return;
+    if (sec.dataset.collapsible === "false") return;
+    head.addEventListener("click", ()=>{
+      const isHidden = body.style.display === "none";
+      body.style.display = isHidden ? "block" : "none";
+    });
+  });
+}
+
 export function updateStats(ui, state){
   ui.statNodes.textContent = String(state.nodes.length);
   ui.statLinks.textContent = String(state.links.length);
@@ -86,10 +99,9 @@ export function buildChecklist(kind, values, state, onChange){
     container.appendChild(wrap);
   });
 
-  // compteur (combien de labos portent la valeur)
+  // Bonus : afficher combien de labos portent chaque valeur
   const mapCount = new Map();
   state.nodesAll.forEach(n => n[kind].forEach(x => mapCount.set(x, (mapCount.get(x)||0)+1)));
-
   container.querySelectorAll(".item").forEach(row=>{
     const main = row.querySelector(".txt")?.childNodes?.[0]?.textContent?.trim() || "";
     const sub = row.querySelector(".sub");
