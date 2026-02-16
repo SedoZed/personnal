@@ -3,9 +3,9 @@ export const state = {
   nodesAll: [],
   nodes: [],
   links: [],
-  linkMode: "erc",     // erc | hceres | keywords
+  linkMode: "erc",
   minShared: 1,
-  charge: -260,
+  charge: -300,
   selected: {
     erc: new Set(),
     hceres: new Set(),

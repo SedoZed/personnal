@@ -1,7 +1,7 @@
 import { CSV_PATH } from "./config.js";
 import { uniq } from "./utils.js";
 import { state } from "./state.js";
-import { buildAllNodes, computeRadius, buildLinks } from "./data.js";
+import { buildAllNodes, computeRadius, buildLinks, computeDominantGroup } from "./data.js";
 import { getUI, initCollapsibles, buildChecklist, wireSearch, updateStats, updateSelectedCounts, clearSelections } from "./ui.js";
 import { createGraph } from "./graph.js";
 
@@ -22,17 +22,17 @@ function applyFiltersAndRender(){
 
   state.nodes.forEach(n => { n.r = computeRadius(n); });
 
-  // Groupe = valeur dominante selon le mode de lien (pour clusters/couleurs)
-  const key = state.linkMode; // "erc" | "hceres" | "keywords"
-  state.nodes.forEach(n => {
-    n.group = (n[key] && n[key].length) ? n[key][0] : "∅";
-  });
-
-
   state.links = buildLinks(state.nodes, state.linkMode, state.minShared);
+
+  // Famille dominante réelle (structurelle) -> groupe pour clusters/couleurs
+  computeDominantGroup(state.nodes, state.linkMode);
 
   updateStats(ui, state);
   graph.render(state.nodes, state.links, state.charge);
+
+  // si une recherche est active, la réappliquer après rerender
+  const q = ui.expertSearch.value.trim();
+  if (q) graph.highlightByExpertise(state.nodes, state.links, q);
 }
 
 function wireControls(){
@@ -57,7 +57,15 @@ function wireControls(){
 
   ui.clearAll.addEventListener("click", ()=>{
     clearSelections(state);
+    ui.expertSearch.value = "";
+    graph.clearSelectionAndHighlight();
     applyFiltersAndRender();
+  });
+
+  // Recherche expertise (humaine)
+  ui.expertSearch.addEventListener("input", ()=>{
+    const q = ui.expertSearch.value;
+    graph.highlightByExpertise(state.nodes, state.links, q);
   });
 }
 
@@ -94,5 +102,5 @@ async function init(){
 
 init().catch(err=>{
   console.error(err);
-  alert("Erreur au chargement du CSV. Vérifie que database-test.csv est bien à la racine et que tu es servi via HTTP (GitHub Pages ou serveur local).");
+  alert("Erreur au chargement du CSV. Vérifie que database-test.csv est à la racine et servi via HTTP (GitHub Pages).");
 });

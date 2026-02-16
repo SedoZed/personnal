@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Plateforme de datavisualisation — Accueil</title>
 
-  <!-- CSS -->
   <link rel="stylesheet" href="./styles.css" />
 
-  <!-- D3 -->
+  <!-- D3 (global) -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 
@@ -19,9 +18,16 @@
         <h1><span class="dot"></span>Accueil — Réseau de laboratoires</h1>
         <p>
           Chaque bulle = un laboratoire (<code>dcterms:title</code>).<br>
-          Les liens sont calculés par “valeurs en commun” (par défaut <code>valo:domaineErc</code>).<br>
-          Dans le CSV, les séparateurs intra-champ sont <code>|</code> (avec ou sans espaces).
+          Les liens = valeurs en commun (ERC/HCERES/keywords). Séparateurs intra-champ : <code>|</code>.
         </p>
+
+        <!-- Recherche expertise (humaine) -->
+        <div class="expert-search">
+          <input id="expertSearch" type="text" placeholder="Rechercher une expertise (ERC / HCERES / keyword)…" />
+          <div class="expert-hint">
+            Tape un terme → les labos correspondants sont mis en évidence (et leurs voisins).
+          </div>
+        </div>
       </header>
 
       <div class="controls">
@@ -51,7 +57,7 @@
                 <label for="charge">Distance / densité</label>
                 <select id="charge">
                   <option value="-420">Plus compact</option>
-                  <option value="-320" selected>Équilibré</option>
+                  <option value="-300" selected>Équilibré</option>
                   <option value="-240">Plus aéré</option>
                 </select>
               </div>
@@ -63,7 +69,7 @@
             </div>
 
             <div class="hint">
-              Astuce : zoom molette / pinch, déplacer en glissant l’arrière-plan, drag & drop sur les bulles.
+              Zoom molette / pinch · déplacer en glissant l’arrière-plan · drag & drop bulles · clic bulle = surlignage.
             </div>
           </div>
         </div>
@@ -124,7 +130,7 @@
     <main class="viz" id="viz">
       <div class="topbar">
         <div class="badge"><span>Fichier :</span> <b>database-test.csv</b></div>
-        <div class="badge"><span>Drag</span> <b>bulles</b> · <span>Zoom</span> <b>molette</b></div>
+        <div class="badge"><span>Clic</span> <b>labo</b> · <span>Fond</span> <b>désélection</b></div>
       </div>
 
       <svg id="svg" aria-label="Réseau de laboratoires"></svg>
@@ -138,7 +144,6 @@
     </main>
   </div>
 
-  <!-- App -->
   <script type="module" src="./js/main.js"></script>
 </body>
 </html>

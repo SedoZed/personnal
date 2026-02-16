@@ -12,7 +12,8 @@ export function getUI(){
     minShared: document.getElementById("minShared"),
     charge: document.getElementById("charge"),
     recenter: document.getElementById("recenter"),
-    clearAll: document.getElementById("clearAll")
+    clearAll: document.getElementById("clearAll"),
+    expertSearch: document.getElementById("expertSearch"),
   };
 }
 
@@ -22,6 +23,7 @@ export function initCollapsibles(){
     const body = sec.querySelector(".section-body");
     if (!head || !body) return;
     if (sec.dataset.collapsible === "false") return;
+
     head.addEventListener("click", ()=>{
       const isHidden = body.style.display === "none";
       body.style.display = isHidden ? "block" : "none";
@@ -99,7 +101,7 @@ export function buildChecklist(kind, values, state, onChange){
     container.appendChild(wrap);
   });
 
-  // Bonus : afficher combien de labos portent chaque valeur
+  // Affiche combien de labos portent chaque valeur
   const mapCount = new Map();
   state.nodesAll.forEach(n => n[kind].forEach(x => mapCount.set(x, (mapCount.get(x)||0)+1)));
   container.querySelectorAll(".item").forEach(row=>{

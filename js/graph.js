@@ -14,10 +14,9 @@ export function createGraph(ui){
   let linkSel = null;
   let nodeSel = null;
 
-  // sélection courante
   let selectedId = null;
 
-  // Couleurs par groupe
+  // couleurs par groupe
   const color = d3.scaleOrdinal(d3.schemeTableau10);
 
   function size(){
@@ -43,9 +42,10 @@ export function createGraph(ui){
     };
     const alt = d.alt ? `<div class="v">${escapeHTML(d.alt)}</div>` : `<div class="v"><em style="color:var(--muted)">—</em></div>`;
     const email = d.email ? `<div class="v">${escapeHTML(d.email)}</div>` : `<div class="v"><em style="color:var(--muted)">—</em></div>`;
+
     return `
       <div class="t">${escapeHTML(d.title || "(Sans titre)")}</div>
-      <div class="k">Groupe</div><div class="v">${escapeHTML(d.group || "∅")}</div>
+      <div class="k">Famille (dominante)</div><div class="v">${escapeHTML(d.group || "∅")}</div>
       <div class="k">Alternative</div>${alt}
       <div class="k">RNSR</div><div class="v">${escapeHTML(d.id)}</div>
       <div class="k">Axes</div><div class="v">${chips(d.axe, 8) || `<em style="color:var(--muted)">—</em>`}</div>
@@ -57,10 +57,9 @@ export function createGraph(ui){
   }
 
   function computeClusterCenters(nodes, w, h){
-    // centres disposés sur un cercle -> aère naturellement les groupes
     const groups = Array.from(new Set(nodes.map(n => n.group || "∅")));
     const cx = w/2, cy = h/2;
-    const R = Math.min(w, h) * 0.28; // rayon du cercle des clusters
+    const R = Math.min(w, h) * 0.28;
 
     const centers = new Map();
     const m = Math.max(groups.length, 1);
@@ -72,7 +71,6 @@ export function createGraph(ui){
   }
 
   function buildAdjacency(links){
-    // Map id -> Set(ids voisins)
     const adj = new Map();
     const touch = (a,b)=>{
       if (!adj.has(a)) adj.set(a, new Set());
@@ -86,18 +84,31 @@ export function createGraph(ui){
     return adj;
   }
 
-  function applyHighlight(adj){
+  function clearSelectionAndHighlight(){
+    selectedId = null;
+    if (nodeSel) nodeSel.classed("dimmed", false).classed("highlight", false).classed("selected", false);
+    if (linkSel) linkSel.classed("dimmed", false).classed("highlight", false);
+  }
+
+  // sélection (clic) : niveau 1 + niveau 2
+  function applySelectionHighlight(adj){
     if (!selectedId){
       nodeSel.classed("dimmed", false).classed("highlight", false).classed("selected", false);
       linkSel.classed("dimmed", false).classed("highlight", false);
       return;
     }
 
-    const neigh = adj.get(selectedId) || new Set();
+    const lvl1 = adj.get(selectedId) || new Set();
+    const lvl2 = new Set();
+    lvl1.forEach(n => {
+      const sub = adj.get(n);
+      if (sub) sub.forEach(x => lvl2.add(x));
+    });
+
     nodeSel
       .classed("selected", d => d.id === selectedId)
-      .classed("highlight", d => d.id === selectedId || neigh.has(d.id))
-      .classed("dimmed", d => !(d.id === selectedId || neigh.has(d.id)));
+      .classed("highlight", d => d.id === selectedId || lvl1.has(d.id))
+      .classed("dimmed", d => !(d.id === selectedId || lvl1.has(d.id) || lvl2.has(d.id)));
 
     linkSel
       .classed("highlight", l => {
@@ -112,25 +123,73 @@ export function createGraph(ui){
       });
   }
 
+  // Recherche expertise : match + voisins (niveau 1)
+  function highlightByExpertise(nodes, links, query){
+    const q = query.trim().toLowerCase();
+    if (!q){
+      // revient à l’état normal (ou à la sélection si existe)
+      const adj = buildAdjacency(links);
+      applySelectionHighlight(adj);
+      return;
+    }
+
+    const matched = new Set(
+      nodes.filter(n=>{
+        const inE = n.erc.some(v => v.toLowerCase().includes(q));
+        const inH = n.hceres.some(v => v.toLowerCase().includes(q));
+        const inK = n.keywords.some(v => v.toLowerCase().includes(q));
+        const inT = (n.title || "").toLowerCase().includes(q);
+        return inE || inH || inK || inT;
+      }).map(n=>n.id)
+    );
+
+    const adj = buildAdjacency(links);
+    const expanded = new Set(matched);
+    matched.forEach(id=>{
+      const neigh = adj.get(id);
+      if (neigh) neigh.forEach(x => expanded.add(x));
+    });
+
+    // Dim tout ce qui n’est pas match ou voisin
+    nodeSel
+      .classed("selected", d => matched.has(d.id))
+      .classed("highlight", d => expanded.has(d.id))
+      .classed("dimmed", d => !expanded.has(d.id));
+
+    // Liens : montrer seulement ceux qui touchent le set expanded (sinon spaghetti)
+    linkSel
+      .classed("highlight", l => {
+        const s = typeof l.source === "object" ? l.source.id : l.source;
+        const t = typeof l.target === "object" ? l.target.id : l.target;
+        return expanded.has(s) && expanded.has(t) && (matched.has(s) || matched.has(t));
+      })
+      .classed("dimmed", l => {
+        const s = typeof l.source === "object" ? l.source.id : l.source;
+        const t = typeof l.target === "object" ? l.target.id : l.target;
+        return !(expanded.has(s) && expanded.has(t));
+      });
+  }
+
   function render(nodes, links, baseChargeStrength){
     const {w,h} = size();
     const cx = w/2, cy = h/2;
 
     if (simulation) simulation.stop();
 
-    // Clusters
+    // clusters (sur group)
     const centers = computeClusterCenters(nodes, w, h);
 
-    // Densité -> ajuste répulsion / gravité
+    // densité -> ajuste forces
     const n = nodes.length || 1;
     const maxLinks = (n * (n - 1)) / 2;
     const density = maxLinks > 0 ? (links.length / maxLinks) : 0;
     const d = clamp(density * 6, 0, 1);
 
+    // charge adoucie si peu de liens
     const chargeStrength = Math.round(baseChargeStrength * (0.35 + 0.65 * d));
     const gravity = 0.08 + (1 - d) * 0.12;
 
-    // Liens plus longs + moins “forts” = plus aéré
+    // plus aéré : distance de lien + strength plus faible
     const linkDistance = (wgt) => clamp(130 - 12*(wgt-1), 70, 170);
 
     simulation = d3.forceSimulation(nodes)
@@ -141,13 +200,20 @@ export function createGraph(ui){
       )
       .force("charge", d3.forceManyBody().strength(chargeStrength))
       .force("center", d3.forceCenter(cx, cy))
-      // Gravité globale
       .force("x", d3.forceX(cx).strength(gravity))
       .force("y", d3.forceY(cy).strength(gravity))
-      // Clustering par groupe (groupe = valeur dominante du mode)
+      // clustering doux (aération par familles)
       .force("clusterX", d3.forceX(d => (centers.get(d.group || "∅")?.x ?? cx)).strength(0.18))
       .force("clusterY", d3.forceY(d => (centers.get(d.group || "∅")?.y ?? cy)).strength(0.18))
       .force("collide", d3.forceCollide().radius(d => d.r + 3).iterations(2));
+
+    // fond svg -> désélection
+    ui.svg.on("click", (event) => {
+      // si clic direct sur svg (fond), on clear
+      if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === "svg"){
+        clearSelectionAndHighlight();
+      }
+    });
 
     // LINKS (discrets par défaut)
     linkSel = gLinks.selectAll("line")
@@ -198,18 +264,16 @@ export function createGraph(ui){
         ui.tooltip.style.transform = "translateY(6px)";
       })
       .on("click", (event, d) => {
-        // toggle sélection
+        event.stopPropagation(); // évite que le clic remonte au svg (désélection)
         selectedId = (selectedId === d.id) ? null : d.id;
         const adj = buildAdjacency(links);
-        applyHighlight(adj);
+        applySelectionHighlight(adj);
       });
 
     nodeEnter.append("circle")
       .attr("r", d => d.r)
       .attr("fill", d => {
         const g = d.group || "∅";
-        // couleur par groupe (avec alpha pour rester soft)
-        // ex: "rgb(...)" -> "rgba(...,0.35)"
         const c = d3.color(color(g));
         return `rgba(${c.r},${c.g},${c.b},0.35)`;
       })
@@ -227,9 +291,9 @@ export function createGraph(ui){
 
     nodeSel = nodeEnter.merge(nodeSel);
 
-    // réapplique le highlight après rerender (si un labo est déjà sélectionné)
+    // (re)applique sélection si existe
     const adjAtStart = buildAdjacency(links);
-    applyHighlight(adjAtStart);
+    applySelectionHighlight(adjAtStart);
 
     simulation.on("tick", ()=>{
       linkSel
@@ -264,5 +328,11 @@ export function createGraph(ui){
     }
   });
 
-  return { render, recenter, size };
+  return {
+    render,
+    recenter,
+    size,
+    clearSelectionAndHighlight,
+    highlightByExpertise,
+  };
 }

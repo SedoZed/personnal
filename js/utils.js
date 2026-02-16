@@ -1,7 +1,6 @@
-// Split robuste : " | " ou "|"
 export function splitMulti(v){
   if (!v) return [];
-  const s = String(v).replace(/\uFEFF/g,"").trim(); // BOM
+  const s = String(v).replace(/\uFEFF/g,"").trim();
   if (!s) return [];
   return s.split(/\s*\|\s*/g).map(x => x.trim()).filter(Boolean);
 }
