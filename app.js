@@ -258,8 +258,22 @@ function fillMultiSelect(selectEl, options) {
 }
 
 // ------------------------ Search (FlexSearch) ------------------------
+function getFlexSearch() {
+  // FlexSearch global (selon CDN/bundle)
+  return window.FlexSearch || window.flexsearch || null;
+}
+
 function buildSearchIndex() {
-  const { Document } = FlexSearch;
+  const Flex = getFlexSearch();
+
+  // Fallback: pas d'index, on fera une recherche naive
+  if (!Flex) {
+    console.warn("FlexSearch non disponible: fallback search activé.");
+    state.index = null;
+    return;
+  }
+
+  const { Document } = Flex;
   state.index = new Document({
     document: {
       id: "id",
@@ -273,7 +287,12 @@ function buildSearchIndex() {
   });
 
   for (const lab of state.labs) {
-    state.index.add({ id: lab.id, code: lab.code, name: lab.name, corpus: lab.corpus });
+    state.index.add({
+      id: lab.id,
+      code: lab.code,
+      name: lab.name,
+      corpus: lab.corpus
+    });
   }
 }
 
@@ -281,11 +300,21 @@ function searchIds(query) {
   const q = norm(query);
   if (!q) return state.labs.map(l => l.id);
 
-  const results = state.index.search(q, { enrich: true });
-  const ids = new Set();
-  for (const group of results) for (const r of group.result) ids.add(r.id);
-  return Array.from(ids);
+  // Si FlexSearch OK
+  if (state.index) {
+    const results = state.index.search(q, { enrich: true });
+    const ids = new Set();
+    for (const group of results) for (const r of group.result) ids.add(r.id);
+    return Array.from(ids);
+  }
+
+  // Fallback naive (moins bon, mais ça marche)
+  const qq = q.toLowerCase();
+  return state.labs
+    .filter(l => (l.corpus || "").toLowerCase().includes(qq))
+    .map(l => l.id);
 }
+
 
 // ------------------------ TF-IDF + cosine ------------------------
 function buildTfidf() {
