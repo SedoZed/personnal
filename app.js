@@ -7,7 +7,7 @@
    - Rendering: D3 force graph
 ============================================================ */
 
-const DEFAULT_DATA_PATH = "data/database-test.csv";
+const DEFAULT_DATA_PATH = "resource/database-test.csv";
 
 /** Columns in your CSV */
 const COL = {
