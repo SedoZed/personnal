@@ -3,130 +3,150 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Plateforme de datavisualisation — Accueil</title>
+  <title>Dataviz Labos — Recherche & Réseau</title>
+  <link rel="stylesheet" href="styles.css" />
 
-  <link rel="stylesheet" href="./styles.css" />
-
-  <!-- D3 (global) -->
-  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <!-- Libraries (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flexsearch@0.7.43/dist/flexsearch.bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 </head>
 
 <body>
-  <div class="app">
-    <aside class="panel">
-      <header>
-        <h1><span class="dot"></span>Accueil — Réseau de laboratoires</h1>
-        <p>
-          Chaque bulle = un laboratoire (<code>dcterms:title</code>).<br>
-          Les liens + recherche + clusters utilisent uniquement <code>valo:keywords-ia</code>.
-          Séparateurs intra-champ : <code>|</code>.
-        </p>
+  <header class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <div class="brand-title">Lab Explorer</div>
+        <div class="brand-subtitle">Recherche + réseau thématique</div>
+      </div>
+    </div>
 
-        <!-- Recherche expertise (humaine) -->
-        <div class="expert-search">
-          <div class="expert-row">
-            <input id="expertSearch" type="text" placeholder="Rechercher une expertise (keywords-ia)…" autocomplete="off" />
-            <button id="expertClear" title="Effacer">✕</button>
+    <nav class="nav">
+      <button id="navHome" class="navbtn is-active" type="button">Accueil</button>
+      <button id="navResults" class="navbtn" type="button" disabled>Résultats</button>
+    </nav>
+  </header>
+
+  <!-- HOME -->
+  <main id="homeView" class="view is-visible">
+    <section class="hero">
+      <h1>Explorer les laboratoires par thèmes</h1>
+      <p>Recherche simple ou avancée (mots-clés, ERC, HCERES). Puis exploration en liste + graphe.</p>
+
+      <div class="searchRow">
+        <input id="qHome" class="input" type="search" placeholder="Rechercher un labo, un thème, un axe, un mot-clé…" />
+        <button id="btnSearch" class="primary" type="button">Rechercher</button>
+      </div>
+
+      <details class="advanced" open>
+        <summary>Recherche avancée</summary>
+        <div class="advancedGrid">
+          <div class="field">
+            <label for="kwInput">Mots-clés (optionnel)</label>
+            <input id="kwInput" class="input" type="text" placeholder="ex: IA, archéologie, inégalités…" />
+            <div class="hint">Astuce : séparés par virgules.</div>
           </div>
 
-          <div class="expert-hint">
-            Suggestions + classement. Clique un résultat pour focus/zoom + surlignage réseau.
+          <div class="field">
+            <label for="ercSelect">Domaines ERC</label>
+            <select id="ercSelect" class="select" multiple size="8"></select>
+            <div class="hint">Ctrl/Cmd pour sélectionner plusieurs valeurs.</div>
           </div>
 
-          <!-- Suggestions (autocomplete) -->
-          <div class="suggestions" id="suggestions" hidden></div>
-
-          <!-- Résultats -->
-          <div class="results">
-            <div class="results-head">
-              <strong>Résultats</strong>
-              <span id="resultsMeta">—</span>
-            </div>
-            <div class="results-list" id="resultsList">
-              <div class="results-empty">Tape un terme (ex: “laser”, “AI”, “materials”…)</div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div class="controls">
-        <div class="section" data-collapsible="false">
-          <div class="section-head">
-            <strong>Liens (keywords-ia)</strong>
-            <span>réglages</span>
-          </div>
-          <div class="section-body">
-            <div class="row">
-              <div>
-                <label for="minShared">Seuil “en commun”</label>
-                <select id="minShared">
-                  <option value="1" selected>≥ 1 mot-clé</option>
-                  <option value="2">≥ 2 mots-clés</option>
-                  <option value="3">≥ 3 mots-clés</option>
-                </select>
-              </div>
-              <div>
-                <label for="charge">Distance / densité</label>
-                <select id="charge">
-                  <option value="-420">Plus compact</option>
-                  <option value="-300" selected>Équilibré</option>
-                  <option value="-240">Plus aéré</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="btnbar">
-              <button class="primary" id="recenter">Recentrer</button>
-              <button id="clearAll">Réinitialiser</button>
-            </div>
-
-            <div class="hint">
-              Zoom molette/pinch · déplacer fond · drag bulles · clic bulle = surlignage voisins.
-            </div>
+          <div class="field">
+            <label for="hceresSelect">Domaines HCERES</label>
+            <select id="hceresSelect" class="select" multiple size="8"></select>
           </div>
         </div>
 
-        <!-- Filtre unique sur keywords-ia -->
-        <div class="section" id="sec-keywords">
-          <div class="section-head">
-            <strong>Filtre — Keywords IA</strong>
-            <span class="count" data-count-for="keywords">0 sélection</span>
-          </div>
-          <div class="section-body">
-            <div class="checklist" data-list="keywords">
-              <div class="search">
-                <input type="text" placeholder="Rechercher un mot-clé IA…" data-search="keywords" />
-              </div>
-              <div class="items" data-items="keywords"></div>
-            </div>
-          </div>
+        <div class="advancedActions">
+          <button id="btnReset" class="ghost" type="button">Réinitialiser</button>
+          <button id="btnSearchAdvanced" class="primary" type="button">Lancer la recherche</button>
+        </div>
+      </details>
+
+      <div id="loadStatus" class="status">Chargement des données…</div>
+    </section>
+  </main>
+
+  <!-- RESULTS -->
+  <main id="resultsView" class="view">
+    <section class="resultsHeader">
+      <div class="resultsLeft">
+        <div class="kpi">
+          <div class="kpiValue" id="kpiCount">—</div>
+          <div class="kpiLabel">laboratoires</div>
+        </div>
+
+        <div class="resultsSearch">
+          <input id="qResults" class="input" type="search" placeholder="Filtrer les résultats…" />
+          <button id="btnBackHome" class="ghost" type="button">Retour</button>
         </div>
       </div>
 
-      <div class="stats">
-        <div class="statline"><span>Labos visibles</span> <b id="statNodes">0</b></div>
-        <div class="statline"><span>Liens</span> <b id="statLinks">0</b></div>
-        <div class="statline"><span>Source</span> <b id="statMode">keywords-ia</b></div>
+      <div class="resultsRight">
+        <div class="pillRow">
+          <span class="pill" id="pillErc">ERC: —</span>
+          <span class="pill" id="pillHceres">HCERES: —</span>
+          <span class="pill" id="pillKw">Mots-clés: —</span>
+        </div>
+        <div class="hint">Liens du graphe = proximité thématique (partage de thèmes / tags).</div>
       </div>
-    </aside>
+    </section>
 
-    <main class="viz" id="viz">
-      <div class="topbar">
-        <div class="badge"><span>Fichier :</span> <b>database-test.csv</b></div>
-        <div class="badge"><span>Clic</span> <b>labo</b> · <span>Fond</span> <b>désélection</b></div>
-      </div>
+    <section class="split">
+      <!-- LIST -->
+      <aside class="panel listPanel">
+        <div class="panelTitle">
+          <h2>Liste</h2>
+          <div class="small" id="listMeta"></div>
+        </div>
+        <ul id="labList" class="labList"></ul>
+      </aside>
 
-      <svg id="svg" aria-label="Réseau de laboratoires"></svg>
+      <!-- GRAPH -->
+      <section class="panel graphPanel">
+        <div class="panelTitle">
+          <h2>Réseau</h2>
+          <div class="small">
+            <label class="toggle">
+              <input id="toggleLabels" type="checkbox" checked />
+              <span>Labels</span>
+            </label>
+            <label class="toggle">
+              <input id="toggleStrongLinks" type="checkbox" checked />
+              <span>Liens “forts” (≥ 2 thèmes)</span>
+            </label>
+          </div>
+        </div>
 
-      <div class="legend">
-        <span class="pill"><span class="swatch"></span>Laboratoire</span>
-        <span class="pill"><span class="swatch link"></span>Lien (keywords-ia en commun)</span>
-      </div>
+        <div class="graphWrap">
+          <svg id="graph" class="graph"></svg>
+          <div class="legend">
+            <div><span class="swatch node"></span> laboratoire</div>
+            <div><span class="swatch link"></span> similarité thématique</div>
+          </div>
+        </div>
+      </section>
 
-      <div class="tooltip" id="tooltip"></div>
-    </main>
-  </div>
+      <!-- DETAIL -->
+      <aside class="panel detailPanel" id="detailPanel">
+        <div class="panelTitle">
+          <h2>Fiche labo</h2>
+          <button id="btnCloseDetail" class="ghost" type="button">Fermer</button>
+        </div>
+        <div id="detailBody" class="detailBody">
+          <div class="muted">Clique un labo (liste ou graphe).</div>
+        </div>
+      </aside>
+    </section>
+  </main>
 
-  <script type="module" src="./js/main.js"></script>
+  <footer class="footer">
+    <span>Prototype client-side (CSV → recherche FlexSearch → réseau D3).</span>
+  </footer>
+
+  <script src="app.js"></script>
 </body>
 </html>
