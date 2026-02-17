@@ -315,6 +315,19 @@ function searchIds(query) {
     .map(l => l.id);
 }
 
+// -- Louvain -- //
+
+function getLouvain() {
+  // Selon le bundle, le global peut varier
+  return (
+    window.graphologyCommunitiesLouvain ||
+    window.louvain ||
+    window.communitiesLouvain ||
+    null
+  );
+}
+
+
 
 // ------------------------ TF-IDF + cosine ------------------------
 function buildTfidf() {
@@ -473,21 +486,48 @@ function computeClustersIfEnabled() {
 
   if (!el.toggleCluster.checked) return;
 
-  const Graph = graphology.Graph;
+  const Louvain = getLouvain();
+  const Graphology = window.graphology;
+
+  if (!Graphology || !Graphology.Graph || !Louvain) {
+    console.warn("Louvain indisponible (CDN/global). Clustering désactivé.");
+    return;
+  }
+
+  const Graph = Graphology.Graph;
   const g = new Graph({ type: "undirected" });
 
   for (const n of state.graph.nodes) g.addNode(n.id);
   for (const e of state.graph.links) {
-    const key = `${e.source}->${e.target}`;
-    if (!g.hasEdge(e.source, e.target)) g.addEdge(e.source, e.target, { weight: e.weight, key });
+    if (!g.hasEdge(e.source, e.target)) {
+      g.addEdge(e.source, e.target, { weight: e.weight });
+    }
   }
 
-  const communities = graphologyCommunitiesLouvain.louvain(g, { weightAttribute: "weight" });
-  for (const [id, c] of Object.entries(communities)) state.graph.clusters.set(id, c);
+  // Selon bundle, l’API peut être louvain() ou default()
+  const algo =
+    typeof Louvain.louvain === "function" ? Louvain.louvain :
+    typeof Louvain === "function" ? Louvain :
+    null;
+
+  if (!algo) {
+    console.warn("API Louvain inconnue. Clustering désactivé.");
+    return;
+  }
+
+  const communities = algo(g, { weightAttribute: "weight" });
+
+  for (const [id, c] of Object.entries(communities)) {
+    state.graph.clusters.set(id, c);
+  }
 
   const uniqClusters = Array.from(new Set(state.graph.clusters.values()));
-  state.graph.palette = d3.scaleOrdinal(uniqClusters, d3.schemeTableau10.concat(d3.schemeSet3));
+  state.graph.palette = d3.scaleOrdinal(
+    uniqClusters,
+    d3.schemeTableau10.concat(d3.schemeSet3)
+  );
 }
+
 
 // ------------------------ Filtering ------------------------
 function applyFilters() {
