@@ -6,10 +6,14 @@
   <title>Dataviz Labos — Recherche & Réseau</title>
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- Libraries (CDN) -->
+  <!-- Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flexsearch@0.7.43/dist/flexsearch.bundle.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+
+  <!-- Graph clustering (Louvain) -->
+  <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/graphology-communities-louvain@2.0.2/build/graphology-communities-louvain.min.js"></script>
 </head>
 
 <body>
@@ -18,7 +22,7 @@
       <div class="dot"></div>
       <div>
         <div class="brand-title">Lab Explorer</div>
-        <div class="brand-subtitle">Recherche + réseau thématique</div>
+        <div class="brand-subtitle">Recherche + réseau thématique (TF-IDF)</div>
       </div>
     </div>
 
@@ -32,11 +36,11 @@
   <main id="homeView" class="view is-visible">
     <section class="hero">
       <h1>Explorer les laboratoires par thèmes</h1>
-      <p>Recherche simple ou avancée (mots-clés, ERC, HCERES). Puis exploration en liste + graphe.</p>
+      <p>Recherche simple ou avancée (mots-clés, ERC, HCERES), puis exploration liste + graphe thématique.</p>
 
       <div class="searchRow">
-        <input id="qHome" class="input" type="search" placeholder="Rechercher un labo, un thème, un axe, un mot-clé…" />
-        <button id="btnSearch" class="primary" type="button">Rechercher</button>
+        <input id="qHome" class="input" type="search" placeholder="Rechercher un labo, un thème, un axe…" />
+        <button id="btnSearch" class="primary" type="button" disabled>Rechercher</button>
       </div>
 
       <details class="advanced" open>
@@ -45,13 +49,13 @@
           <div class="field">
             <label for="kwInput">Mots-clés (optionnel)</label>
             <input id="kwInput" class="input" type="text" placeholder="ex: IA, archéologie, inégalités…" />
-            <div class="hint">Astuce : séparés par virgules.</div>
+            <div class="hint">Séparés par virgules.</div>
           </div>
 
           <div class="field">
             <label for="ercSelect">Domaines ERC</label>
             <select id="ercSelect" class="select" multiple size="8"></select>
-            <div class="hint">Ctrl/Cmd pour sélectionner plusieurs valeurs.</div>
+            <div class="hint">Ctrl/Cmd pour multi-sélection.</div>
           </div>
 
           <div class="field">
@@ -62,11 +66,18 @@
 
         <div class="advancedActions">
           <button id="btnReset" class="ghost" type="button">Réinitialiser</button>
-          <button id="btnSearchAdvanced" class="primary" type="button">Lancer la recherche</button>
+          <button id="btnSearchAdvanced" class="primary" type="button" disabled>Lancer la recherche</button>
         </div>
       </details>
 
+      <div class="importRow">
+        <input id="fileInput" type="file" accept=".csv,text/csv" hidden />
+        <button id="btnImport" class="ghost" type="button">Importer un CSV</button>
+        <div class="hint">Utile si le fichier n’est pas trouvé sur GitHub Pages.</div>
+      </div>
+
       <div id="loadStatus" class="status">Chargement des données…</div>
+      <div id="loadDiag" class="status" style="display:none;"></div>
     </section>
   </main>
 
@@ -91,7 +102,7 @@
           <span class="pill" id="pillHceres">HCERES: —</span>
           <span class="pill" id="pillKw">Mots-clés: —</span>
         </div>
-        <div class="hint">Liens du graphe = proximité thématique (partage de thèmes / tags).</div>
+        <div class="hint">Graphe : similarité cosine sur TF-IDF (thèmes, keywords, domaines).</div>
       </div>
     </section>
 
@@ -114,10 +125,25 @@
               <input id="toggleLabels" type="checkbox" checked />
               <span>Labels</span>
             </label>
+
             <label class="toggle">
-              <input id="toggleStrongLinks" type="checkbox" checked />
-              <span>Liens “forts” (≥ 2 thèmes)</span>
+              <input id="toggleCluster" type="checkbox" checked />
+              <span>Cluster (Louvain)</span>
             </label>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="control">
+            <div class="controlLabel">Seuil similarité</div>
+            <input id="simThreshold" type="range" min="0.05" max="0.40" step="0.01" value="0.14" />
+            <div class="controlValue" id="simThresholdVal">0.14</div>
+          </div>
+
+          <div class="control">
+            <div class="controlLabel">Top-K voisins / nœud</div>
+            <input id="topK" type="range" min="2" max="20" step="1" value="8" />
+            <div class="controlValue" id="topKVal">8</div>
           </div>
         </div>
 
@@ -125,7 +151,7 @@
           <svg id="graph" class="graph"></svg>
           <div class="legend">
             <div><span class="swatch node"></span> laboratoire</div>
-            <div><span class="swatch link"></span> similarité thématique</div>
+            <div><span class="swatch link"></span> similarité TF-IDF</div>
           </div>
         </div>
       </section>
@@ -144,7 +170,7 @@
   </main>
 
   <footer class="footer">
-    <span>Prototype client-side (CSV → recherche FlexSearch → réseau D3).</span>
+    <span>Prototype : CSV → FlexSearch → TF-IDF cosine → Louvain → D3</span>
   </footer>
 
   <script src="app.js"></script>
