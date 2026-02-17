@@ -1,25 +1,9 @@
 /* ============================================================
-   Lab Explorer — client-side prototype
-   - Data source: CSV (resource/database-test.csv)
-   - Search: FlexSearch (full-text)
-   - Graph: D3 force (thematic similarity)
+   Lab Explorer — anti-freeze build
 ============================================================ */
 
-/**
- * GitHub Pages + "file://" gotchas:
- * - If you open index.html via file://, fetch() will likely fail.
- * - On GitHub Pages, relative paths are served correctly, as long as the file is committed.
- *
- * This loader tries multiple candidate paths so renames don't break silently.
- */
-const CSV_CANDIDATE_URLS = [
-  "resource/database-test.csv",
-  "./resource/database-test.csv",
-  // optional fallback if you move files later:
-  "database-test.csv"
-];
+const CSV_RELATIVE_PATH = "resource/database-test.csv"; // <- ton nouveau dossier
 
-/** Columns in your CSV (observed) */
 const COL = {
   code: "dcterms:title",
   name: "dcterms:alternative",
@@ -35,70 +19,36 @@ const COL = {
 const state = {
   labs: [],
   index: null,
-  filters: {
-    q: "",
-    kw: [],
-    erc: [],
-    hceres: []
-  },
+  filters: { q: "", kw: [], erc: [], hceres: [] },
   results: [],
   activeId: null,
-  graph: {
-    sim: null,
-    nodes: [],
-    links: []
-  },
-  debug: {
-    loadedFrom: null
-  }
+  graph: { sim: null, nodes: [], links: [], _d3: null },
+  debug: { csvUrl: null }
 };
 
-// ------------------------ DOM ------------------------
-const el = {
-  homeView: document.getElementById("homeView"),
-  resultsView: document.getElementById("resultsView"),
-  navHome: document.getElementById("navHome"),
-  navResults: document.getElementById("navResults"),
+function $(id) { return document.getElementById(id); }
 
-  loadStatus: document.getElementById("loadStatus"),
-
-  qHome: document.getElementById("qHome"),
-  kwInput: document.getElementById("kwInput"),
-  ercSelect: document.getElementById("ercSelect"),
-  hceresSelect: document.getElementById("hceresSelect"),
-  btnSearch: document.getElementById("btnSearch"),
-  btnSearchAdvanced: document.getElementById("btnSearchAdvanced"),
-  btnReset: document.getElementById("btnReset"),
-
-  qResults: document.getElementById("qResults"),
-  btnBackHome: document.getElementById("btnBackHome"),
-
-  kpiCount: document.getElementById("kpiCount"),
-  listMeta: document.getElementById("listMeta"),
-  labList: document.getElementById("labList"),
-
-  pillErc: document.getElementById("pillErc"),
-  pillHceres: document.getElementById("pillHceres"),
-  pillKw: document.getElementById("pillKw"),
-
-  toggleLabels: document.getElementById("toggleLabels"),
-  toggleStrongLinks: document.getElementById("toggleStrongLinks"),
-
-  detailBody: document.getElementById("detailBody"),
-  btnCloseDetail: document.getElementById("btnCloseDetail"),
-
-  svg: d3.select("#graph")
-};
-
-// Disable actions until data is loaded
-el.btnSearch.disabled = true;
-el.btnSearchAdvanced.disabled = true;
-el.navResults.disabled = true;
-
-// ------------------------ Utils ------------------------
-function norm(s) {
-  return (s ?? "").toString().trim();
+function setStatus(msg, isError = false) {
+  const s = $("loadStatus");
+  if (!s) return;
+  s.textContent = msg;
+  s.style.color = isError ? "#ff4d6d" : "";
 }
+
+function assertLibs() {
+  const missing = [];
+  if (typeof Papa === "undefined") missing.push("PapaParse");
+  if (typeof FlexSearch === "undefined") missing.push("FlexSearch");
+  if (typeof d3 === "undefined") missing.push("D3");
+  if (missing.length) {
+    throw new Error(
+      `Librairies non chargées: ${missing.join(", ")}. ` +
+      `Cause probable: CDN bloqué ou offline.`
+    );
+  }
+}
+
+function norm(s) { return (s ?? "").toString().trim(); }
 function splitPipe(s) {
   const t = norm(s);
   if (!t) return [];
@@ -117,13 +67,6 @@ function containsAllTokens(haystack, tokens) {
   const h = haystack.toLowerCase();
   return tokens.every(t => h.includes(t.toLowerCase()));
 }
-function shortenPipeString(s, n = 3) {
-  const a = splitPipe(s);
-  return a.slice(0, n);
-}
-function readSelected(selectEl) {
-  return Array.from(selectEl.selectedOptions).map(o => o.value);
-}
 function escapeHtml(str) {
   return (str ?? "").toString()
     .replaceAll("&", "&amp;")
@@ -132,55 +75,96 @@ function escapeHtml(str) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
-
-// ------------------------ Robust CSV loader ------------------------
-async function fetchTextWithFallback(urls) {
-  let lastErr = null;
-
-  for (const url of urls) {
-    try {
-      // Important on GH Pages: avoid stale cache during iteration
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) {
-        lastErr = new Error(`HTTP ${res.status} on ${url}`);
-        continue;
-      }
-      const txt = await res.text();
-      state.debug.loadedFrom = url;
-      return txt;
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-
-  // Detect file:// usage -> helpful hint
-  const isFile = window.location.protocol === "file:";
-  const hint = isFile
-    ? "Tu ouvres sûrement le fichier en file:// (double-clic). Dans ce cas fetch() échoue. Lance un mini serveur local (ex: `python -m http.server`) ou teste via GitHub Pages."
-    : "Vérifie que le CSV est bien commité dans le repo et que le chemin est correct (resource/database-test.csv).";
-
-  const tried = urls.map(u => `- ${u}`).join("\n");
-  const msg =
-    `Impossible de charger le CSV.\n\nChemins testés:\n${tried}\n\nDernière erreur: ${lastErr}\n\nAstuce: ${hint}`;
-  throw new Error(msg);
+function readSelected(selectEl) {
+  return Array.from(selectEl.selectedOptions).map(o => o.value);
 }
 
-// ------------------------ Load CSV ------------------------
+async function fetchWithTimeout(url, ms = 12000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, { cache: "no-store", signal: ctrl.signal });
+    return res;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/**
+ * Critical fix for GitHub Pages subpath:
+ * Use document.baseURI to resolve absolute URL correctly.
+ */
+function resolveCsvUrl() {
+  const url = new URL(CSV_RELATIVE_PATH, document.baseURI).toString();
+  state.debug.csvUrl = url;
+  return url;
+}
+
+// ------------------------ DOM refs (after libs are present) ------------------------
+let el = null;
+
+function bindDom() {
+  el = {
+    homeView: $("homeView"),
+    resultsView: $("resultsView"),
+    navHome: $("navHome"),
+    navResults: $("navResults"),
+
+    qHome: $("qHome"),
+    kwInput: $("kwInput"),
+    ercSelect: $("ercSelect"),
+    hceresSelect: $("hceresSelect"),
+    btnSearch: $("btnSearch"),
+    btnSearchAdvanced: $("btnSearchAdvanced"),
+    btnReset: $("btnReset"),
+
+    qResults: $("qResults"),
+    btnBackHome: $("btnBackHome"),
+
+    kpiCount: $("kpiCount"),
+    listMeta: $("listMeta"),
+    labList: $("labList"),
+
+    pillErc: $("pillErc"),
+    pillHceres: $("pillHceres"),
+    pillKw: $("pillKw"),
+
+    toggleLabels: $("toggleLabels"),
+    toggleStrongLinks: $("toggleStrongLinks"),
+
+    detailBody: $("detailBody"),
+    btnCloseDetail: $("btnCloseDetail"),
+
+    svg: d3.select("#graph")
+  };
+
+  // disable until loaded
+  el.btnSearch.disabled = true;
+  el.btnSearchAdvanced.disabled = true;
+  el.navResults.disabled = true;
+}
+
+// ------------------------ CSV load ------------------------
 async function loadData() {
-  el.loadStatus.textContent = "Chargement des données…";
+  setStatus("Chargement des données…");
 
-  const csvText = await fetchTextWithFallback(CSV_CANDIDATE_URLS);
+  const csvUrl = resolveCsvUrl();
+  setStatus(`Chargement des données… (source: ${csvUrl})`);
 
-  const parsed = Papa.parse(csvText, {
-    header: true,
-    skipEmptyLines: true
-  });
-
-  if (parsed.errors?.length) {
-    console.warn("PapaParse errors:", parsed.errors);
+  const res = await fetchWithTimeout(csvUrl, 15000);
+  if (!res.ok) {
+    throw new Error(`CSV introuvable (HTTP ${res.status}). URL: ${csvUrl}`);
   }
 
+  const csvText = await res.text();
+
+  const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+  if (parsed.errors?.length) console.warn("PapaParse errors:", parsed.errors);
+
   const rows = parsed.data || [];
+  if (!rows.length) {
+    throw new Error(`CSV chargé mais vide (ou parsing KO). URL: ${csvUrl}`);
+  }
 
   state.labs = rows.map((r, i) => {
     const code = norm(r[COL.code]);
@@ -194,20 +178,12 @@ async function loadData() {
     const axes = splitPipe(r[COL.axes]);
     const emails = splitPipe(r[COL.emails]);
 
-    // Themes used to create links (first version: intersection-based)
-    const themes = uniq([...kwIA, ...kw, ...erc, ...hceres].map(x => x.trim()).filter(Boolean));
+    const themes = uniq([...kwIA, ...kw, ...erc, ...hceres].filter(Boolean));
 
     return {
-      id,
-      code,
-      name,
+      id, code, name,
       rnsr: norm(r[COL.rnsr]),
-      axes,
-      erc,
-      hceres,
-      kw,
-      kwIA,
-      emails,
+      axes, erc, hceres, kw, kwIA, emails,
       themes,
       corpus: [
         code, name,
@@ -224,22 +200,13 @@ async function loadData() {
   buildFacets();
   buildSearchIndex();
 
-  el.loadStatus.textContent = `Données chargées : ${state.labs.length} labos. (source: ${state.debug.loadedFrom})`;
-
+  setStatus(`Données chargées : ${state.labs.length} labos.`);
   el.btnSearch.disabled = false;
   el.btnSearchAdvanced.disabled = false;
   el.navResults.disabled = false;
 }
 
 // ------------------------ Facets ------------------------
-function buildFacets() {
-  const allErc = uniq(state.labs.flatMap(l => l.erc));
-  const allHceres = uniq(state.labs.flatMap(l => l.hceres));
-
-  fillMultiSelect(el.ercSelect, allErc);
-  fillMultiSelect(el.hceresSelect, allHceres);
-}
-
 function fillMultiSelect(selectEl, options) {
   selectEl.innerHTML = "";
   for (const opt of options) {
@@ -249,11 +216,16 @@ function fillMultiSelect(selectEl, options) {
     selectEl.appendChild(o);
   }
 }
+function buildFacets() {
+  const allErc = uniq(state.labs.flatMap(l => l.erc));
+  const allHceres = uniq(state.labs.flatMap(l => l.hceres));
+  fillMultiSelect(el.ercSelect, allErc);
+  fillMultiSelect(el.hceresSelect, allHceres);
+}
 
 // ------------------------ Search (FlexSearch) ------------------------
 function buildSearchIndex() {
   const { Document } = FlexSearch;
-
   state.index = new Document({
     document: {
       id: "id",
@@ -282,7 +254,6 @@ function searchIds(query) {
 
   const results = state.index.search(q, { enrich: true });
   const ids = new Set();
-
   for (const group of results) {
     for (const r of group.result) ids.add(r.id);
   }
@@ -312,12 +283,12 @@ function applyFilters() {
   renderPills();
 }
 
-// ------------------------ Rendering list ------------------------
+// ------------------------ Render list ------------------------
 function renderResults() {
   el.kpiCount.textContent = String(state.results.length);
   el.listMeta.textContent = `${state.results.length} résultat(s)`;
-
   el.labList.innerHTML = "";
+
   const frag = document.createDocumentFragment();
 
   for (const lab of state.results) {
@@ -325,121 +296,37 @@ function renderResults() {
     li.className = "labItem";
     li.dataset.id = lab.id;
 
-    const top = document.createElement("div");
-    top.className = "labCode";
-    top.textContent = lab.code || lab.id;
-
-    const name = document.createElement("div");
-    name.className = "labName";
-    name.textContent = lab.name || "—";
-
-    const tags = document.createElement("div");
-    tags.className = "tags";
-
-    const tagVals = uniq([
-      ...shortenPipeString(lab.kwIA.join("|"), 2),
-      ...shortenPipeString(lab.erc.join("|"), 1),
-      ...shortenPipeString(lab.hceres.join("|"), 1),
-    ]).slice(0, 5);
-
-    for (const t of tagVals) {
-      const span = document.createElement("span");
-      span.className = "tag";
-      span.textContent = t;
-      tags.appendChild(span);
-    }
-
-    li.appendChild(top);
-    li.appendChild(name);
-    li.appendChild(tags);
+    li.innerHTML = `
+      <div class="labCode">${escapeHtml(lab.code || lab.id)}</div>
+      <div class="labName">${escapeHtml(lab.name || "—")}</div>
+      <div class="tags">
+        ${uniq([...lab.kwIA.slice(0,2), ...lab.erc.slice(0,1), ...lab.hceres.slice(0,1)])
+          .slice(0,5)
+          .map(t => `<span class="tag">${escapeHtml(t)}</span>`)
+          .join("")}
+      </div>
+    `;
 
     li.addEventListener("click", () => setActiveLab(lab.id));
-    li.addEventListener("mouseenter", () => highlightNode(lab.id, true));
-    li.addEventListener("mouseleave", () => highlightNode(lab.id, false));
-
     frag.appendChild(li);
   }
 
   el.labList.appendChild(frag);
 }
 
-// ------------------------ Detail panel ------------------------
+// ------------------------ Detail ------------------------
 function setActiveLab(id) {
   state.activeId = id;
-
   document.querySelectorAll(".labItem").forEach(x => {
     x.classList.toggle("is-active", x.dataset.id === id);
   });
 
-  highlightNode(id, true, true);
-
   const lab = state.labs.find(l => l.id === id);
   if (!lab) return;
 
-  el.detailBody.innerHTML = renderLabDetailHTML(lab);
-
-  const neighbors = neighborsOf(id).slice(0, 8);
-  const container = el.detailBody.querySelector("#neighbors");
-  if (!container) return;
-
-  if (!neighbors.length) {
-    container.innerHTML = `<div class="muted">Aucun voisin thématique dans cette vue.</div>`;
-    return;
-  }
-
-  container.innerHTML = `
-    <div class="badgeList">
-      ${neighbors.map(n => `
-        <button class="badge alt" data-nid="${n.id}" title="${escapeHtml(n.shared.join(" • "))}">
-          ${escapeHtml(n.code)}
-        </button>
-      `).join("")}
-    </div>
-    <div class="hint" style="margin-top:8px;">Clic = ouvrir la fiche du voisin.</div>
-  `;
-
-  container.querySelectorAll("button[data-nid]").forEach(btn => {
-    btn.addEventListener("click", () => setActiveLab(btn.dataset.nid));
-  });
-}
-
-function neighborsOf(id) {
-  const labById = new Map(state.labs.map(l => [l.id, l]));
-  const links = state.graph.links || [];
-  const out = [];
-
-  for (const lk of links) {
-    const s = typeof lk.source === "object" ? lk.source.id : lk.source;
-    const t = typeof lk.target === "object" ? lk.target.id : lk.target;
-    if (s !== id && t !== id) continue;
-
-    const other = s === id ? t : s;
-    const otherLab = labById.get(other);
-    if (!otherLab) continue;
-
-    out.push({
-      id: otherLab.id,
-      code: otherLab.code || otherLab.id,
-      weight: lk.weight || 0,
-      shared: lk.shared || []
-    });
-  }
-
-  out.sort((a, b) => b.weight - a.weight);
-  return out;
-}
-
-function renderLabDetailHTML(lab) {
-  return `
+  el.detailBody.innerHTML = `
     <div class="detailTitle">${escapeHtml(lab.code || lab.id)}</div>
     <div class="detailSubtitle">${escapeHtml(lab.name || "—")}</div>
-
-    <div class="detailSection">
-      <h3>Identifiants</h3>
-      <div class="kv">
-        <div class="k">RNSR</div><div class="v">${escapeHtml(lab.rnsr || "—")}</div>
-      </div>
-    </div>
 
     <div class="detailSection">
       <h3>Domaines</h3>
@@ -450,34 +337,15 @@ function renderLabDetailHTML(lab) {
     </div>
 
     <div class="detailSection">
-      <h3>Axes</h3>
-      <div class="badgeList">
-        ${(lab.axes || []).map(x => `<span class="badge">${escapeHtml(x)}</span>`).join("") || `<span class="muted">—</span>`}
-      </div>
-    </div>
-
-    <div class="detailSection">
       <h3>Mots-clés (IA)</h3>
       <div class="badgeList">
-        ${(lab.kwIA || []).slice(0, 18).map(x => `<span class="badge alt">${escapeHtml(x)}</span>`).join("") || `<span class="muted">—</span>`}
+        ${(lab.kwIA || []).slice(0,18).map(x => `<span class="badge alt">${escapeHtml(x)}</span>`).join("") || `<span class="muted">—</span>`}
       </div>
-    </div>
-
-    <div class="detailSection">
-      <h3>Emails</h3>
-      <div class="badgeList">
-        ${(lab.emails || []).slice(0, 10).map(e => `<span class="badge">${escapeHtml(e)}</span>`).join("") || `<span class="muted">—</span>`}
-      </div>
-    </div>
-
-    <div class="detailSection">
-      <h3>Voisins thématiques</h3>
-      <div id="neighbors"></div>
     </div>
   `;
 }
 
-// ------------------------ View switching ------------------------
+// ------------------------ Views ------------------------
 function showHome() {
   el.homeView.classList.add("is-visible");
   el.resultsView.classList.remove("is-visible");
@@ -489,27 +357,25 @@ function showResults() {
   el.resultsView.classList.add("is-visible");
   el.navHome.classList.remove("is-active");
   el.navResults.classList.add("is-active");
-
-  // Ensure graph layout is correct after view change
-  window.setTimeout(() => {
-    buildGraphForResults();
-    renderGraph();
-    if (state.activeId) highlightNode(state.activeId, true, true);
-  }, 50);
+  setTimeout(() => renderGraph(), 50);
 }
 
 // ------------------------ Pills ------------------------
 function renderPills() {
-  const erc = state.filters.erc.length ? `${state.filters.erc.length} sélection` : "—";
-  const h = state.filters.hceres.length ? `${state.filters.hceres.length} sélection` : "—";
-  const kw = state.filters.kw.length ? state.filters.kw.join(", ") : "—";
-
-  el.pillErc.textContent = `ERC: ${erc}`;
-  el.pillHceres.textContent = `HCERES: ${h}`;
-  el.pillKw.textContent = `Mots-clés: ${kw}`;
+  el.pillErc.textContent = `ERC: ${state.filters.erc.length ? `${state.filters.erc.length} sélection` : "—"}`;
+  el.pillHceres.textContent = `HCERES: ${state.filters.hceres.length ? `${state.filters.hceres.length} sélection` : "—"}`;
+  el.pillKw.textContent = `Mots-clés: ${state.filters.kw.length ? state.filters.kw.join(", ") : "—"}`;
 }
 
-// ------------------------ Graph (D3 force) ------------------------
+// ------------------------ Graph (D3) ------------------------
+function intersect(a, b) {
+  if (!a?.length || !b?.length) return [];
+  const sb = new Set(b);
+  const out = [];
+  for (const x of a) if (sb.has(x)) out.push(x);
+  return out;
+}
+
 function buildGraphForResults() {
   const labs = state.results;
   const strongOnly = el.toggleStrongLinks.checked;
@@ -525,17 +391,9 @@ function buildGraphForResults() {
   const links = [];
   for (let i = 0; i < nodes.length; i++) {
     for (let j = i + 1; j < nodes.length; j++) {
-      const a = nodes[i], b = nodes[j];
-      const shared = intersect(a.themes, b.themes);
+      const shared = intersect(nodes[i].themes, nodes[j].themes);
       const w = shared.length;
-      if (w >= minShared) {
-        links.push({
-          source: a.id,
-          target: b.id,
-          weight: w,
-          shared: shared.slice(0, 10)
-        });
-      }
+      if (w >= minShared) links.push({ source: nodes[i].id, target: nodes[j].id, weight: w });
     }
   }
 
@@ -543,30 +401,18 @@ function buildGraphForResults() {
   state.graph.links = links;
 }
 
-function intersect(a, b) {
-  if (!a?.length || !b?.length) return [];
-  const sb = new Set(b);
-  const out = [];
-  for (const x of a) if (sb.has(x)) out.push(x);
-  return out;
-}
-
 function renderGraph() {
   const svg = el.svg;
   svg.selectAll("*").remove();
 
   const wrap = document.querySelector(".graphWrap");
-  const width = wrap.clientWidth || 800;
-  const height = wrap.clientHeight || 520;
+  const width = wrap?.clientWidth || 800;
+  const height = wrap?.clientHeight || 520;
 
   svg.attr("viewBox", [0, 0, width, height]);
 
-  // defs first (safe)
   const defs = svg.append("defs");
-  const grad = defs.append("linearGradient")
-    .attr("id", "grad")
-    .attr("x1", "0%").attr("y1", "0%")
-    .attr("x2", "100%").attr("y2", "100%");
+  const grad = defs.append("linearGradient").attr("id", "grad").attr("x1", "0%").attr("y1", "0%").attr("x2", "100%").attr("y2", "100%");
   grad.append("stop").attr("offset", "0%").attr("stop-color", "#7c5cff");
   grad.append("stop").attr("offset", "100%").attr("stop-color", "#2de2e6");
 
@@ -574,12 +420,7 @@ function renderGraph() {
   const links = state.graph.links;
 
   const g = svg.append("g");
-
-  svg.call(
-    d3.zoom()
-      .scaleExtent([0.4, 3])
-      .on("zoom", (event) => g.attr("transform", event.transform))
-  );
+  svg.call(d3.zoom().scaleExtent([0.4, 3]).on("zoom", (event) => g.attr("transform", event.transform)));
 
   const link = g.append("g")
     .attr("stroke", "rgba(255,255,255,.22)")
@@ -596,7 +437,8 @@ function renderGraph() {
     .attr("r", 8)
     .attr("fill", "url(#grad)")
     .attr("stroke", "rgba(255,255,255,.15)")
-    .attr("stroke-width", 1);
+    .attr("stroke-width", 1)
+    .on("click", (_, d) => setActiveLab(d.id));
 
   const labelsOn = el.toggleLabels.checked;
   const label = g.append("g")
@@ -617,28 +459,6 @@ function renderGraph() {
     .force("center", d3.forceCenter(width / 2, height / 2))
     .force("collide", d3.forceCollide().radius(18));
 
-  node.call(
-    d3.drag()
-      .on("start", (event, d) => {
-        if (!event.active) sim.alphaTarget(0.25).restart();
-        d.fx = d.x; d.fy = d.y;
-      })
-      .on("drag", (event, d) => {
-        d.fx = event.x; d.fy = event.y;
-      })
-      .on("end", (event, d) => {
-        if (!event.active) sim.alphaTarget(0);
-        d.fx = null; d.fy = null;
-      })
-  );
-
-  node
-    .on("mouseenter", (_, d) => highlightNode(d.id, true))
-    .on("mouseleave", (_, d) => highlightNode(d.id, false))
-    .on("click", (_, d) => setActiveLab(d.id));
-
-  node.append("title").text(d => `${d.code}\n${d.name}`);
-
   sim.on("tick", () => {
     link
       .attr("x1", d => d.source.x)
@@ -646,112 +466,44 @@ function renderGraph() {
       .attr("x2", d => d.target.x)
       .attr("y2", d => d.target.y);
 
-    node
-      .attr("cx", d => d.x)
-      .attr("cy", d => d.y);
-
-    label
-      .attr("x", d => d.x + 10)
-      .attr("y", d => d.y + 4);
+    node.attr("cx", d => d.x).attr("cy", d => d.y);
+    label.attr("x", d => d.x + 10).attr("y", d => d.y + 4);
   });
 
   state.graph.sim = sim;
   state.graph._d3 = { node, link, label };
 }
 
-function highlightNode(id, on, sticky = false) {
-  const d3ref = state.graph._d3;
-  if (!d3ref) return;
-
-  const { node, link, label } = d3ref;
-  const active = sticky ? id : state.activeId;
-
-  node
-    .attr("stroke", d => {
-      const isThis = d.id === id;
-      const isActive = active && d.id === active;
-      return (isThis && on) || isActive ? "rgba(45,226,230,.95)" : "rgba(255,255,255,.15)";
-    })
-    .attr("stroke-width", d => {
-      const isThis = d.id === id;
-      const isActive = active && d.id === active;
-      return (isThis && on) || isActive ? 3 : 1;
-    })
-    .attr("r", d => {
-      const isThis = d.id === id;
-      const isActive = active && d.id === active;
-      return (isThis && on) || isActive ? 11 : 8;
-    });
-
-  link
-    .attr("stroke", d => {
-      const s = typeof d.source === "object" ? d.source.id : d.source;
-      const t = typeof d.target === "object" ? d.target.id : d.target;
-      const touch = s === id || t === id;
-      const touchActive = active && (s === active || t === active);
-      return (touch && on) || touchActive ? "rgba(45,226,230,.5)" : "rgba(255,255,255,.22)";
-    })
-    .attr("opacity", d => {
-      const s = typeof d.source === "object" ? d.source.id : d.source;
-      const t = typeof d.target === "object" ? d.target.id : d.target;
-      const touch = s === id || t === id;
-      const touchActive = active && (s === active || t === active);
-      return (touch && on) || touchActive ? 0.9 : Math.min(0.15 + (d.weight || 1) * 0.12, 0.75);
-    });
-
-  label.attr("fill", d => {
-    const isThis = d.id === id;
-    const isActive = active && d.id === active;
-    return (isThis && on) || isActive ? "rgba(231,233,238,1)" : "rgba(231,233,238,.85)";
-  });
-
-  if (!sticky) {
-    document.querySelectorAll(".labItem").forEach(x => {
-      if (x.dataset.id === id) x.classList.toggle("is-active", on);
-      else if (!state.activeId) x.classList.remove("is-active");
-    });
-  }
-}
-
 // ------------------------ Events ------------------------
 function wireUI() {
   el.navHome.addEventListener("click", showHome);
+  el.navResults.addEventListener("click", showResults);
 
-  el.navResults.addEventListener("click", () => {
-    showResults();
-  });
-
-  // Home search (simple)
   el.btnSearch.addEventListener("click", () => {
-    state.filters.q = norm(el.qHome.value);
-    state.filters.kw = [];
-    state.filters.erc = [];
-    state.filters.hceres = [];
+    state.filters = { q: norm(el.qHome.value), kw: [], erc: [], hceres: [] };
     applyFilters();
     showResults();
   });
 
-  // Advanced search
   el.btnSearchAdvanced.addEventListener("click", () => {
-    state.filters.q = norm(el.qHome.value);
-    state.filters.kw = parseKwInput(el.kwInput.value);
-    state.filters.erc = readSelected(el.ercSelect);
-    state.filters.hceres = readSelected(el.hceresSelect);
-
+    state.filters = {
+      q: norm(el.qHome.value),
+      kw: parseKwInput(el.kwInput.value),
+      erc: readSelected(el.ercSelect),
+      hceres: readSelected(el.hceresSelect)
+    };
     applyFilters();
     showResults();
   });
 
-  // Reset
   el.btnReset.addEventListener("click", () => {
     el.qHome.value = "";
     el.kwInput.value = "";
-    Array.from(el.ercSelect.options).forEach(o => o.selected = false);
-    Array.from(el.hceresSelect.options).forEach(o => o.selected = false);
+    Array.from(el.ercSelect.options).forEach(o => (o.selected = false));
+    Array.from(el.hceresSelect.options).forEach(o => (o.selected = false));
     state.filters = { q: "", kw: [], erc: [], hceres: [] };
   });
 
-  // Results quick filter
   el.qResults.addEventListener("input", () => {
     state.filters.q = norm(el.qResults.value);
     applyFilters();
@@ -759,42 +511,31 @@ function wireUI() {
 
   el.btnBackHome.addEventListener("click", showHome);
 
-  el.toggleLabels.addEventListener("change", () => {
-    renderGraph();
-    if (state.activeId) highlightNode(state.activeId, true, true);
-  });
-
+  el.toggleLabels.addEventListener("change", () => renderGraph());
   el.toggleStrongLinks.addEventListener("change", () => {
     buildGraphForResults();
     renderGraph();
-    if (state.activeId) highlightNode(state.activeId, true, true);
   });
 
   el.btnCloseDetail.addEventListener("click", () => {
     state.activeId = null;
     el.detailBody.innerHTML = `<div class="muted">Clique un labo (liste ou graphe).</div>`;
     document.querySelectorAll(".labItem").forEach(x => x.classList.remove("is-active"));
-    highlightNode("", false);
-  });
-
-  window.addEventListener("resize", () => {
-    if (el.resultsView.classList.contains("is-visible")) {
-      renderGraph();
-      if (state.activeId) highlightNode(state.activeId, true, true);
-    }
   });
 }
 
 // ------------------------ Boot ------------------------
-(async function main() {
-  wireUI();
+(async function boot() {
   try {
+    assertLibs();
+    bindDom();
+    wireUI();
+
     await loadData();
-    state.filters = { q: "", kw: [], erc: [], hceres: [] };
     applyFilters();
+
   } catch (err) {
     console.error(err);
-    el.loadStatus.textContent = err.message;
-    el.loadStatus.style.color = "#ff4d6d";
+    setStatus(err.message, true);
   }
 })();
