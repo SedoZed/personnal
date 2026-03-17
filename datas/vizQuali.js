@@ -1,31 +1,35 @@
 // datas/vizQuali.js
 
-// --- Stopwords FR minimalistes (à enrichir selon tes besoins)
+// --- Stopwords FR (comparaison sans accents)
 const STOPWORDS_FR = new Set([
-  "a","à","au","aux","avec","ce","ces","dans","de","des","du","elle","en","et","eux","il","je","la","le","les","leur","lui","ma","mais","me","même","mes","moi","mon","ne","nos","notre","nous","on","ou","par","pas","pour","qu","que","qui","sa","se","ses","son","sur","ta","te","tes","toi","ton","tu","un","une","vos","votre","vous","c","d","j","l","n","s","t","y","été","être","fait","ça","ici","est","sont","etait","etaient","ete","etre","ai","as","a","avons","avez","ont","avais","avait","avions","aviez","avaient","aurai","auras","aura","aurons","aurez","auront","suis","es","sommes","etes","serai","seras","sera","serons","serez","seront","ceci","cela","cet","cette","ces","celui","celle","ceux","celles","plus","moins","tres","comme","donc","ainsi","alors","car"
-
+  "a","à","au","aux","avec","ce","ces","dans","de","des","du","elle","en","et","eux","il","je","la","le","les","leur","lui","ma","mais","me","même","mes","moi","mon","ne","nos","notre","nous","on","ou","par","pas","pour","qu","que","qui","sa","se","ses","son","sur","ta","te","tes","toi","ton","tu","un","une","vos","votre","vous","c","d","j","l","n","s","t","y","ete","etre","fait","ca","ici","est","sont","etait","etaient","ai","as","avons","avez","ont","avais","avait","avions","aviez","avaient","aurai","auras","aura","aurons","aurez","auront","suis","es","sommes","etes","serai","seras","sera","serons","serez","seront","ceci","cela","cet","cette","ces","celui","celle","ceux","celles","plus","moins","tres","comme","donc","ainsi","alors","car"
 ]);
 
-// ✅ stocke les dernières fréquences pour pouvoir (re)rendre quand l’onglet devient visible
-let LAST_FREQS = [];
+// État global du module
+let LAST_FREQS  = [];
+let CURRENT_FONT = "sans-serif";
+let CURRENT_BG   = "";  // vide = fond par défaut (transparent)
 
-function normalizeText(text) {
-  return text
+// --- Normalise uniquement pour la comparaison aux stopwords (sans accents, minuscules)
+function normalizeForStopwords(word) {
+  return word
     .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // retire accents
-    .replace(/[^a-z0-9\s'-]/g, " ")                  // garde lettres/chiffres/espaces/'/-
-    .replace(/\s+/g, " ")
-    .trim();
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
+// --- Tokenisation : conserve les accents, met une majuscule à chaque mot
 function tokenize(text) {
-  const clean = normalizeText(text);
-  if (!clean) return [];
-  return clean
+  if (!text.trim()) return [];
+  return text
+    // Garde lettres (y compris accentuées), chiffres, apostrophes, tirets
+    .replace(/[^\wàâäéèêëîïôùûüÿæœçÀÂÄÉÈÊËÎÏÔÙÛÜŸÆŒÇ0-9\s'-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
     .split(" ")
-    .map(w => w.replace(/^[-']+|[-']+$/g, "")) // trim apostrophes/tirets
+    .map(w => w.replace(/^[-']+|[-']+$/g, ""))               // trim apostrophes/tirets
     .filter(w => w.length >= 3)
-    .filter(w => !STOPWORDS_FR.has(w));
+    .filter(w => !STOPWORDS_FR.has(normalizeForStopwords(w))) // stopwords insensibles aux accents
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()); // Majuscule initiale
 }
 
 function wordFrequencies(tokens) {
@@ -35,37 +39,39 @@ function wordFrequencies(tokens) {
     .sort((a, b) => b.count - a.count);
 }
 
+// --- Applique la couleur de fond sur les deux conteneurs
+function applyBackground(color) {
+  const wc = document.getElementById("wordcloud");
+  const oc = document.getElementById("occurrences");
+  const bg = color || "rgba(255,255,255,0.02)";
+  if (wc) wc.style.background = bg;
+  if (oc) oc.style.background = bg;
+}
+
 // --- Tabs UI
 function setupTabs() {
-  const btns = document.querySelectorAll(".tabBtn");
+  const btns     = document.querySelectorAll(".tabBtn");
   const tabCloud = document.getElementById("tab-cloud");
-  const tabOcc = document.getElementById("tab-occ");
+  const tabOcc   = document.getElementById("tab-occ");
 
   btns.forEach(btn => {
     btn.addEventListener("click", () => {
       const tab = btn.dataset.tab;
 
-      // reset styles
       btns.forEach(b => {
         b.style.background = "transparent";
         b.style.color = "#c9d1d9";
       });
-
-      // active style
       btn.style.background = "rgba(255,255,255,0.06)";
       btn.style.color = "#fff";
 
       if (tab === "cloud") {
         tabCloud.style.display = "block";
-        tabOcc.style.display = "none";
-
-        // optionnel : rerender cloud si besoin
+        tabOcc.style.display   = "none";
         if (LAST_FREQS.length) renderWordCloud(LAST_FREQS);
       } else {
         tabCloud.style.display = "none";
-        tabOcc.style.display = "block";
-
-        // ✅ IMPORTANT : le conteneur est visible => dimensions correctes
+        tabOcc.style.display   = "block";
         if (LAST_FREQS.length) renderOccurrences(LAST_FREQS);
       }
     });
@@ -77,26 +83,24 @@ function renderWordCloud(freqs) {
   const container = document.getElementById("wordcloud");
   container.innerHTML = "";
 
-  const rect = container.getBoundingClientRect();
-  const width = Math.max(320, Math.floor(rect.width));
+  const rect   = container.getBoundingClientRect();
+  const width  = Math.max(320, Math.floor(rect.width));
   const height = Math.max(260, Math.floor(rect.height));
 
-  const top = freqs.slice(0, 80);
-  const max = top[0]?.count || 1;
+  const top  = freqs.slice(0, 80);
+  const max  = top[0]?.count || 1;
 
-  const size = d3.scaleLinear()
-    .domain([1, max])
-    .range([12, 64]);
+  const size = d3.scaleLinear().domain([1, max]).range([12, 64]);
 
   const words = top.map(d => ({
-    text: d.word,
-    size: size(d.count),
+    text:  d.word,
+    size:  size(d.count),
     count: d.count
   }));
 
   const svg = d3.select(container)
     .append("svg")
-    .attr("width", width)
+    .attr("width",  width)
     .attr("height", height);
 
   const g = svg.append("g")
@@ -107,19 +111,19 @@ function renderWordCloud(freqs) {
     .words(words)
     .padding(2)
     .rotate(() => (Math.random() > 0.85 ? 90 : 0))
-    .font("sans-serif")
+    .font(CURRENT_FONT)          // ← police dynamique
     .fontSize(d => d.size)
     .on("end", (drawWords) => {
       g.selectAll("text")
         .data(drawWords)
         .enter()
         .append("text")
-        .style("font-size", d => `${d.size}px`)
-        .style("font-family", "sans-serif")
-        .style("fill", "currentColor")
-        .style("opacity", 0.95)
+        .style("font-size",   d => `${d.size}px`)
+        .style("font-family", CURRENT_FONT)  // ← police dynamique
+        .style("fill",    "currentColor")
+        .style("opacity",  0.95)
         .attr("text-anchor", "middle")
-        .attr("transform", d => `translate(${d.x},${d.y}) rotate(${d.rotate})`)
+        .attr("transform",   d => `translate(${d.x},${d.y}) rotate(${d.rotate})`)
         .text(d => d.text)
         .append("title")
         .text(d => `${d.text} — ${d.count}`);
@@ -132,19 +136,18 @@ function renderOccurrences(freqs) {
   const container = document.getElementById("occurrences");
   container.innerHTML = "";
 
-  const rect = container.getBoundingClientRect();
-  const width = Math.max(360, Math.floor(rect.width));
+  const rect   = container.getBoundingClientRect();
+  const width  = Math.max(360, Math.floor(rect.width));
   const height = Math.max(260, Math.floor(rect.height));
 
-  const data = freqs.slice(0, 20).reverse(); // top 20, affiché du bas vers le haut
-
+  const data   = freqs.slice(0, 20).reverse();
   const margin = { top: 16, right: 16, bottom: 16, left: 110 };
-  const w = width - margin.left - margin.right;
-  const h = height - margin.top - margin.bottom;
+  const w      = width  - margin.left - margin.right;
+  const h      = height - margin.top  - margin.bottom;
 
   const svg = d3.select(container)
     .append("svg")
-    .attr("width", width)
+    .attr("width",  width)
     .attr("height", height);
 
   const g = svg.append("g")
@@ -159,54 +162,83 @@ function renderOccurrences(freqs) {
     .range([h, 0])
     .padding(0.2);
 
-  // Axes
+  // Axe
   g.append("g")
     .call(d3.axisLeft(y).tickSize(0))
     .call(g => g.select(".domain").remove())
     .selectAll("text")
-    .style("fill", "currentColor")
-    .style("opacity", 0.9);
+    .style("fill",        "currentColor")
+    .style("font-family", CURRENT_FONT)  // ← police dynamique
+    .style("opacity",     0.9);
 
-  // Bars
+  // Barres
   g.selectAll("rect")
     .data(data)
     .enter()
     .append("rect")
-    .attr("x", 0)
-    .attr("y", d => y(d.word))
-    .attr("height", y.bandwidth())
-    .attr("width", d => x(d.count))
-    .attr("fill", "currentColor")
+    .attr("x",       0)
+    .attr("y",       d => y(d.word))
+    .attr("height",  y.bandwidth())
+    .attr("width",   d => x(d.count))
+    .attr("fill",    "currentColor")
     .attr("opacity", 0.18);
 
-  // Values
+  // Valeurs
   g.selectAll("text.value")
     .data(data)
     .enter()
     .append("text")
     .attr("class", "value")
-    .attr("x", d => x(d.count) + 6)
-    .attr("y", d => (y(d.word) || 0) + y.bandwidth() / 2 + 4)
-    .style("fill", "currentColor")
-    .style("opacity", 0.9)
+    .attr("x",     d => x(d.count) + 6)
+    .attr("y",     d => (y(d.word) || 0) + y.bandwidth() / 2 + 4)
+    .style("fill",        "currentColor")
+    .style("font-family", CURRENT_FONT)  // ← police dynamique
+    .style("opacity",     0.9)
     .text(d => d.count);
 }
 
 // --- Orchestration
 function analyzeText(text) {
   const tokens = tokenize(text);
-  const freqs = wordFrequencies(tokens);
+  const freqs  = wordFrequencies(tokens);
   return { tokens, freqs };
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
 
-  const input = document.getElementById("inputText");
-  const btn = document.getElementById("analyzeBtn");
-  const status = document.getElementById("status");
-  const results = document.getElementById("results");
+  const input        = document.getElementById("inputText");
+  const btn          = document.getElementById("analyzeBtn");
+  const status       = document.getElementById("status");
+  const results      = document.getElementById("results");
+  const fontSelect   = document.getElementById("fontSelect");
+  const bgColorPicker = document.getElementById("bgColor");
+  const bgReset      = document.getElementById("bgReset");
 
+  // --- Changement de police : re-render l'onglet actif
+  fontSelect.addEventListener("change", () => {
+    CURRENT_FONT = fontSelect.value;
+    if (!LAST_FREQS.length) return;
+    const tabOcc   = document.getElementById("tab-occ");
+    const tabCloud = document.getElementById("tab-cloud");
+    if (tabCloud && tabCloud.style.display !== "none") renderWordCloud(LAST_FREQS);
+    if (tabOcc   && tabOcc.style.display   !== "none") renderOccurrences(LAST_FREQS);
+  });
+
+  // --- Changement de couleur de fond (live)
+  bgColorPicker.addEventListener("input", () => {
+    CURRENT_BG = bgColorPicker.value;
+    applyBackground(CURRENT_BG);
+  });
+
+  // --- Réinitialisation du fond
+  bgReset.addEventListener("click", () => {
+    CURRENT_BG = "";
+    bgColorPicker.value = "#0d1117";
+    applyBackground("");
+  });
+
+  // --- Analyse
   btn.addEventListener("click", () => {
     const text = input.value || "";
     status.textContent = "Analyse…";
@@ -223,32 +255,28 @@ document.addEventListener("DOMContentLoaded", () => {
     results.style.display = "block";
     status.textContent = `${tokens.length} mots retenus — ${freqs.length} termes uniques`;
 
-    // ✅ mémorise pour l’onglet occurrences
     LAST_FREQS = freqs;
-
-    // ✅ nuage direct (visible)
+    applyBackground(CURRENT_BG);
     renderWordCloud(freqs);
 
-    // ✅ ne pas rendre occurrences ici (souvent caché => width/height = 0)
-    // renderOccurrences(freqs);
-
-    // Remet sur l'onglet nuage
     document.querySelector('.tabBtn[data-tab="cloud"]').click();
   });
 
-  // Option UX : Ctrl+Enter / Cmd+Enter pour analyser
+  // Ctrl/Cmd + Entrée pour analyser
   input.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") btn.click();
   });
 
-  // ✅ rerender au resize si l’onglet est visible
+  // Resize avec debounce (évite les re-renders en rafale)
+  let resizeTimer;
   window.addEventListener("resize", () => {
-    const tabOcc = document.getElementById("tab-occ");
-    const tabCloud = document.getElementById("tab-cloud");
-
-    if (LAST_FREQS.length) {
-      if (tabOcc && tabOcc.style.display !== "none") renderOccurrences(LAST_FREQS);
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (!LAST_FREQS.length) return;
+      const tabOcc   = document.getElementById("tab-occ");
+      const tabCloud = document.getElementById("tab-cloud");
+      if (tabOcc   && tabOcc.style.display   !== "none") renderOccurrences(LAST_FREQS);
       if (tabCloud && tabCloud.style.display !== "none") renderWordCloud(LAST_FREQS);
-    }
+    }, 150);
   });
 });
