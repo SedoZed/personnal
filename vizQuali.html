@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DataViz Explorer — Quali</title>
+  <link rel="stylesheet" href="./datas/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>DataViz Explorer</h1>
+    </header>
+
+    <div class="main">
+      <aside class="sidebar">
+        <nav class="nav" aria-label="Navigation">
+          <a data-nav href="index.html"><span class="pill"></span>Viz 1</a>
+          <a data-nav href="viz2.html"><span class="pill"></span>Viz 2</a>
+          <a data-nav href="viz3.html"><span class="pill"></span>Viz 3</a>
+          <a data-nav href="vizQuali.html"><span class="pill"></span>Quali <small>— sélectionné</small></a>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <section class="card">
+            <h2>Analyse qualitative</h2>
+
+            <label for="inputText" style="display:block; margin:10px 0 6px;">
+            Colle ton texte :
+            </label>
+            <textarea id="inputText" rows="8" style="width:100%; border-radius:12px; padding:12px; background:rgba(255,255,255,0.04); color:#e6edf3; border:1px solid rgba(255,255,255,0.10);"></textarea>
+
+            <div style="display:flex; gap:10px; align-items:center; margin-top:10px;">
+                <button id="analyzeBtn" style="border-radius:12px; padding:10px 12px; background:rgba(110,168,254,0.18); color:#fff; border:1px solid rgba(110,168,254,0.35); cursor:pointer;">
+                Analyser
+                </button>
+                <span id="status" style="opacity:0.8;"></span>
+            </div>
+
+            <div id="results" style="display:none; margin-top:14px;">
+                <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+                    <button class="tabBtn" data-tab="cloud" style="border-radius:999px; padding:8px 10px; background:rgba(255,255,255,0.06); color:#fff; border:1px solid rgba(255,255,255,0.10); cursor:pointer;">
+                    Nuage de mots
+                    </button>
+                    <button class="tabBtn" data-tab="occ" style="border-radius:999px; padding:8px 10px; background:transparent; color:#c9d1d9; border:1px solid rgba(255,255,255,0.10); cursor:pointer;">
+                    Occurrences
+                    </button>
+                </div>
+
+                <div id="tab-cloud">
+                    <div id="wordcloud" style="width:100%; height:420px; border-radius:16px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02);"></div>
+                </div>
+
+                <div id="tab-occ" style="display:none;">
+                    <div id="occurrences" style="width:100%; height:420px; border-radius:16px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02);"></div>
+                    </div>
+                </div>
+         </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="./datas/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-cloud/build/d3.layout.cloud.js"></script>
+  <script src="./datas/vizQuali.js"></script>
+</body>
+</html>

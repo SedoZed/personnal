@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DataViz Explorer — Viz 3</title>
+  <link rel="stylesheet" href="./datas/styles.css" />
+</head>
+
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>DataViz Explorer</h1>
+    </header>
+
+    <div class="main">
+      <aside class="sidebar">
+        <nav class="nav" aria-label="Navigation">
+          <a data-nav href="index.html"><span class="pill"></span>Viz 1</a>
+          <a data-nav href="viz2.html"><span class="pill"></span>Viz 2</a>
+          <a data-nav href="viz3.html"><span class="pill"></span>Viz 3 <small>— sélectionné</small></a>
+          <a data-nav href="vizQuali.html"><span class="pill"></span>Quali</a>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <section class="card">
+          <h2 style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+            Visualisation 3 — Évolution temporelle
+
+            <span class="infoTip">
+              <button class="infoBtn" type="button" aria-label="Aide — comment lire la visualisation">ⓘ</button>
+              <span class="infoBubble" role="tooltip">
+                <b>Comment lire ?</b><br>
+                La courbe/aire agrège les artistes par périodes (5/10/20 ans).<br>
+                Brush = zoom sur une période (double-clic pour reset).<br>
+                Survol = infos rapides, clic = liste cliquable d’artistes.
+              </span>
+            </span>
+          </h2>
+
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin:10px 0 12px;">
+            <div>
+              <label style="display:block; font-size:12px; opacity:.85; margin-bottom:6px;">Date utilisée</label>
+              <select id="dateBasis" class="select">
+                <option value="birth">Année de naissance</option>
+                <option value="death">Année de décès</option>
+                <option value="mid" selected>Milieu de carrière (approx.)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="display:block; font-size:12px; opacity:.85; margin-bottom:6px;">Type de vue</label>
+              <select id="viewType" class="select">
+                <option value="line" selected>Courbe</option>
+                <option value="stack">Aire empilée (par mouvement)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="display:block; font-size:12px; opacity:.85; margin-bottom:6px;">Métrique</label>
+              <select id="metricSelect" class="select">
+                <option value="totalPaintings" selected>Total d’œuvres</option>
+                <option value="artistCount">Nombre d’artistes</option>
+                <option value="avgPaintings">Moyenne d’œuvres / artiste</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="display:block; font-size:12px; opacity:.85; margin-bottom:6px;">Pas de temps</label>
+              <select id="binSelect" class="select">
+                <option value="5">5 ans</option>
+                <option value="10" selected>10 ans</option>
+                <option value="20">20 ans</option>
+              </select>
+            </div>
+
+            <div style="min-width:220px;">
+              <label style="display:block; font-size:12px; opacity:.85; margin-bottom:6px;">Limiter les mouvements (stack)</label>
+              <select id="topN" class="select">
+                <option value="6">Top 6 + “Other”</option>
+                <option value="8" selected>Top 8 + “Other”</option>
+                <option value="12">Top 12 + “Other”</option>
+                <option value="999">Tous</option>
+              </select>
+            </div>
+
+            <div style="flex:1; min-width:240px;">
+              <label style="display:block; font-size:12px; opacity:.85; margin-bottom:6px;">Filtrer par mouvement (courbe)</label>
+              <select id="movementSelect" class="select">
+                <option value="__ALL__">Tous</option>
+              </select>
+            </div>
+
+            <button id="resetBtn3" class="select" style="min-width:auto; cursor:pointer;">Reset</button>
+            <div id="stats3" style="margin-left:auto; opacity:.85; font-size:12px;"></div>
+          </div>
+
+          <div id="timeViz"
+               style="width:100%; height:560px; border-radius:16px; overflow:hidden;
+                      border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02);">
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="./datas/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="./datas/viz3.js"></script>
+</body>
+</html>
