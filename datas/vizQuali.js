@@ -5,31 +5,30 @@ const STOPWORDS_FR = new Set([
   "a","à","au","aux","avec","ce","ces","dans","de","des","du","elle","en","et","eux","il","je","la","le","les","leur","lui","ma","mais","me","même","mes","moi","mon","ne","nos","notre","nous","on","ou","par","pas","pour","qu","que","qui","sa","se","ses","son","sur","ta","te","tes","toi","ton","tu","un","une","vos","votre","vous","c","d","j","l","n","s","t","y","ete","etre","fait","ca","ici","est","sont","etait","etaient","ai","as","avons","avez","ont","avais","avait","avions","aviez","avaient","aurai","auras","aura","aurons","aurez","auront","suis","es","sommes","etes","serai","seras","sera","serons","serez","seront","ceci","cela","cet","cette","ces","celui","celle","ceux","celles","plus","moins","tres","comme","donc","ainsi","alors","car"
 ]);
 
-// État global du module
-let LAST_FREQS  = [];
-let CURRENT_FONT = "sans-serif";
-let CURRENT_BG   = "";  // vide = fond par défaut (transparent)
+// ─── État global ───────────────────────────────────────────────
+let LAST_FREQS        = [];
+let CURRENT_FONT      = "sans-serif";
+let CURRENT_BG        = "";
+let CURRENT_MAX_WORDS = 50;
+let BANLIST           = new Set(); // mots normalisés à exclure
+let WHITELIST         = new Set(); // mots normalisés à afficher uniquement
+// ───────────────────────────────────────────────────────────────
 
-// --- Normalise uniquement pour la comparaison aux stopwords (sans accents, minuscules)
 function normalizeForStopwords(word) {
-  return word
-    .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return word.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-// --- Tokenisation : conserve les accents, met une majuscule à chaque mot
 function tokenize(text) {
   if (!text.trim()) return [];
   return text
-    // Garde lettres (y compris accentuées), chiffres, apostrophes, tirets
     .replace(/[^\wàâäéèêëîïôùûüÿæœçÀÂÄÉÈÊËÎÏÔÙÛÜŸÆŒÇ0-9\s'-]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .split(" ")
-    .map(w => w.replace(/^[-']+|[-']+$/g, ""))               // trim apostrophes/tirets
+    .map(w => w.replace(/^[-']+|[-']+$/g, ""))
     .filter(w => w.length >= 3)
-    .filter(w => !STOPWORDS_FR.has(normalizeForStopwords(w))) // stopwords insensibles aux accents
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()); // Majuscule initiale
+    .filter(w => !STOPWORDS_FR.has(normalizeForStopwords(w)))
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
 function wordFrequencies(tokens) {
@@ -39,14 +38,70 @@ function wordFrequencies(tokens) {
     .sort((a, b) => b.count - a.count);
 }
 
-// --- Applique la couleur de fond sur les deux conteneurs
-function applyBackground(color) {
-  const wc = document.getElementById("wordcloud");
-  const oc = document.getElementById("occurrences");
-  const bg = color || "rgba(255,255,255,0.02)";
-  if (wc) wc.style.background = bg;
-  if (oc) oc.style.background = bg;
+// --- Applique ban-list et whitelist sur LAST_FREQS
+// Priorité : si whitelist non vide → afficher seulement ces mots
+//            ban-list toujours appliquée en plus
+function applyFilters(freqs) {
+  return freqs.filter(d => {
+    const norm = normalizeForStopwords(d.word);
+    if (WHITELIST.size > 0 && !WHITELIST.has(norm)) return false;
+    if (BANLIST.has(norm)) return false;
+    return true;
+  });
 }
+
+function applyBackground(color) {
+  const bg = color || "rgba(255,255,255,0.02)";
+  ["wordcloud", "occurrences"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.background = bg;
+  });
+}
+
+// --- Re-render l'onglet actif (avec filtres appliqués)
+function rerender() {
+  if (!LAST_FREQS.length) return;
+  const filtered = applyFilters(LAST_FREQS);
+  const tabCloud = document.getElementById("tab-cloud");
+  const tabOcc   = document.getElementById("tab-occ");
+  if (tabCloud && tabCloud.style.display !== "none") renderWordCloud(filtered);
+  if (tabOcc   && tabOcc.style.display   !== "none") renderOccurrences(filtered);
+}
+
+// ─── Tags UI ──────────────────────────────────────────────────
+
+function addTag(set, word, containerId, color) {
+  const norm = normalizeForStopwords(word.trim());
+  if (!norm || norm.length < 1 || set.has(norm)) return false;
+  set.add(norm);
+  renderTags(set, containerId, color);
+  return true;
+}
+
+function removeTag(set, norm, containerId, color) {
+  set.delete(norm);
+  renderTags(set, containerId, color);
+}
+
+function renderTags(set, containerId, color) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = "";
+  set.forEach(norm => {
+    const pill = document.createElement("span");
+    pill.style.cssText = `display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;background:${color.bg};border:1px solid ${color.border};color:${color.text};font-size:12px;margin:2px 2px 2px 0;`;
+    pill.textContent = norm;
+    const x = document.createElement("button");
+    x.textContent = "×";
+    x.title = "Retirer";
+    x.style.cssText = `background:none;border:none;color:${color.text};cursor:pointer;padding:0;font-size:14px;line-height:1;opacity:0.7;`;
+    x.addEventListener("click", () => { removeTag(set, norm, containerId, color); rerender(); });
+    pill.appendChild(x);
+    container.appendChild(pill);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
 
 // --- Tabs UI
 function setupTabs() {
@@ -56,227 +111,174 @@ function setupTabs() {
 
   btns.forEach(btn => {
     btn.addEventListener("click", () => {
-      const tab = btn.dataset.tab;
-
-      btns.forEach(b => {
-        b.style.background = "transparent";
-        b.style.color = "#c9d1d9";
-      });
+      btns.forEach(b => { b.style.background = "transparent"; b.style.color = "#c9d1d9"; });
       btn.style.background = "rgba(255,255,255,0.06)";
       btn.style.color = "#fff";
 
-      if (tab === "cloud") {
+      const filtered = applyFilters(LAST_FREQS);
+      if (btn.dataset.tab === "cloud") {
         tabCloud.style.display = "block";
         tabOcc.style.display   = "none";
-        if (LAST_FREQS.length) renderWordCloud(LAST_FREQS);
+        if (LAST_FREQS.length) renderWordCloud(filtered);
       } else {
         tabCloud.style.display = "none";
         tabOcc.style.display   = "block";
-        if (LAST_FREQS.length) renderOccurrences(LAST_FREQS);
+        if (LAST_FREQS.length) renderOccurrences(filtered);
       }
     });
   });
 }
 
-// --- Wordcloud (d3-cloud)
+// --- Wordcloud
 function renderWordCloud(freqs) {
   const container = document.getElementById("wordcloud");
   container.innerHTML = "";
-
   const rect   = container.getBoundingClientRect();
   const width  = Math.max(320, Math.floor(rect.width));
   const height = Math.max(260, Math.floor(rect.height));
+  const top    = freqs.slice(0, CURRENT_MAX_WORDS);
+  const max    = top[0]?.count || 1;
+  const size   = d3.scaleLinear().domain([1, max]).range([12, 64]);
+  const words  = top.map(d => ({ text: d.word, size: size(d.count), count: d.count }));
 
-  const top  = freqs.slice(0, 80);
-  const max  = top[0]?.count || 1;
-
-  const size = d3.scaleLinear().domain([1, max]).range([12, 64]);
-
-  const words = top.map(d => ({
-    text:  d.word,
-    size:  size(d.count),
-    count: d.count
-  }));
-
-  const svg = d3.select(container)
-    .append("svg")
-    .attr("width",  width)
-    .attr("height", height);
-
-  const g = svg.append("g")
-    .attr("transform", `translate(${width / 2},${height / 2})`);
+  const svg = d3.select(container).append("svg").attr("width", width).attr("height", height);
+  const g   = svg.append("g").attr("transform", `translate(${width / 2},${height / 2})`);
 
   d3.layout.cloud()
-    .size([width, height])
-    .words(words)
-    .padding(2)
+    .size([width, height]).words(words).padding(2)
     .rotate(() => (Math.random() > 0.85 ? 90 : 0))
-    .font(CURRENT_FONT)          // ← police dynamique
-    .fontSize(d => d.size)
-    .on("end", (drawWords) => {
-      g.selectAll("text")
-        .data(drawWords)
-        .enter()
-        .append("text")
+    .font(CURRENT_FONT).fontSize(d => d.size)
+    .on("end", (dw) => {
+      g.selectAll("text").data(dw).enter().append("text")
         .style("font-size",   d => `${d.size}px`)
-        .style("font-family", CURRENT_FONT)  // ← police dynamique
-        .style("fill",    "currentColor")
-        .style("opacity",  0.95)
+        .style("font-family", CURRENT_FONT)
+        .style("fill", "currentColor").style("opacity", 0.95)
         .attr("text-anchor", "middle")
-        .attr("transform",   d => `translate(${d.x},${d.y}) rotate(${d.rotate})`)
+        .attr("transform", d => `translate(${d.x},${d.y}) rotate(${d.rotate})`)
         .text(d => d.text)
-        .append("title")
-        .text(d => `${d.text} — ${d.count}`);
-    })
-    .start();
+        .append("title").text(d => `${d.text} — ${d.count}`);
+    }).start();
 }
 
-// --- Occurrences (bar chart D3)
+// --- Occurrences
 function renderOccurrences(freqs) {
   const container = document.getElementById("occurrences");
   container.innerHTML = "";
-
   const rect   = container.getBoundingClientRect();
   const width  = Math.max(360, Math.floor(rect.width));
   const height = Math.max(260, Math.floor(rect.height));
-
-  const data   = freqs.slice(0, 20).reverse();
+  const data   = freqs.slice(0, CURRENT_MAX_WORDS).reverse();
   const margin = { top: 16, right: 16, bottom: 16, left: 110 };
-  const w      = width  - margin.left - margin.right;
-  const h      = height - margin.top  - margin.bottom;
+  const w = width - margin.left - margin.right;
+  const h = height - margin.top  - margin.bottom;
 
-  const svg = d3.select(container)
-    .append("svg")
-    .attr("width",  width)
-    .attr("height", height);
+  const svg = d3.select(container).append("svg").attr("width", width).attr("height", height);
+  const g   = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const g = svg.append("g")
-    .attr("transform", `translate(${margin.left},${margin.top})`);
+  const x = d3.scaleLinear().domain([0, d3.max(data, d => d.count) || 1]).range([0, w]);
+  const y = d3.scaleBand().domain(data.map(d => d.word)).range([h, 0]).padding(0.2);
 
-  const x = d3.scaleLinear()
-    .domain([0, d3.max(data, d => d.count) || 1])
-    .range([0, w]);
-
-  const y = d3.scaleBand()
-    .domain(data.map(d => d.word))
-    .range([h, 0])
-    .padding(0.2);
-
-  // Axe
-  g.append("g")
-    .call(d3.axisLeft(y).tickSize(0))
+  g.append("g").call(d3.axisLeft(y).tickSize(0))
     .call(g => g.select(".domain").remove())
     .selectAll("text")
-    .style("fill",        "currentColor")
-    .style("font-family", CURRENT_FONT)  // ← police dynamique
-    .style("opacity",     0.9);
+    .style("fill", "currentColor").style("font-family", CURRENT_FONT).style("opacity", 0.9);
 
-  // Barres
-  g.selectAll("rect")
-    .data(data)
-    .enter()
-    .append("rect")
-    .attr("x",       0)
-    .attr("y",       d => y(d.word))
-    .attr("height",  y.bandwidth())
-    .attr("width",   d => x(d.count))
-    .attr("fill",    "currentColor")
-    .attr("opacity", 0.18);
+  g.selectAll("rect").data(data).enter().append("rect")
+    .attr("x", 0).attr("y", d => y(d.word))
+    .attr("height", y.bandwidth()).attr("width", d => x(d.count))
+    .attr("fill", "currentColor").attr("opacity", 0.18);
 
-  // Valeurs
-  g.selectAll("text.value")
-    .data(data)
-    .enter()
-    .append("text")
+  g.selectAll("text.value").data(data).enter().append("text")
     .attr("class", "value")
-    .attr("x",     d => x(d.count) + 6)
-    .attr("y",     d => (y(d.word) || 0) + y.bandwidth() / 2 + 4)
-    .style("fill",        "currentColor")
-    .style("font-family", CURRENT_FONT)  // ← police dynamique
-    .style("opacity",     0.9)
+    .attr("x", d => x(d.count) + 6)
+    .attr("y", d => (y(d.word) || 0) + y.bandwidth() / 2 + 4)
+    .style("fill", "currentColor").style("font-family", CURRENT_FONT).style("opacity", 0.9)
     .text(d => d.count);
 }
 
-// --- Orchestration
-function analyzeText(text) {
-  const tokens = tokenize(text);
-  const freqs  = wordFrequencies(tokens);
-  return { tokens, freqs };
-}
-
+// ─── Init ──────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
 
-  const input        = document.getElementById("inputText");
-  const btn          = document.getElementById("analyzeBtn");
-  const status       = document.getElementById("status");
-  const results      = document.getElementById("results");
-  const fontSelect   = document.getElementById("fontSelect");
+  const BAN_COLOR   = { bg: "rgba(220,60,60,0.15)",  border: "rgba(220,60,60,0.35)",  text: "#f08080" };
+  const WHITE_COLOR = { bg: "rgba(60,180,120,0.15)", border: "rgba(60,180,120,0.35)", text: "#7de0b0" };
+
+  const input         = document.getElementById("inputText");
+  const btn           = document.getElementById("analyzeBtn");
+  const status        = document.getElementById("status");
+  const results       = document.getElementById("results");
+  const fontSelect    = document.getElementById("fontSelect");
   const bgColorPicker = document.getElementById("bgColor");
-  const bgReset      = document.getElementById("bgReset");
+  const bgReset       = document.getElementById("bgReset");
+  const wordsSlider   = document.getElementById("wordsSlider");
+  const wordsLabel    = document.getElementById("wordsLabel");
+  const banInput      = document.getElementById("banInput");
+  const banAdd        = document.getElementById("banAdd");
+  const banClear      = document.getElementById("banClear");
+  const wlInput       = document.getElementById("wlInput");
+  const wlAdd         = document.getElementById("wlAdd");
+  const wlClear       = document.getElementById("wlClear");
 
-  // --- Changement de police : re-render l'onglet actif
-  fontSelect.addEventListener("change", () => {
-    CURRENT_FONT = fontSelect.value;
-    if (!LAST_FREQS.length) return;
-    const tabOcc   = document.getElementById("tab-occ");
-    const tabCloud = document.getElementById("tab-cloud");
-    if (tabCloud && tabCloud.style.display !== "none") renderWordCloud(LAST_FREQS);
-    if (tabOcc   && tabOcc.style.display   !== "none") renderOccurrences(LAST_FREQS);
+  // --- Slider
+  wordsSlider.addEventListener("input", () => {
+    CURRENT_MAX_WORDS = parseInt(wordsSlider.value, 10);
+    wordsLabel.textContent = CURRENT_MAX_WORDS;
+    rerender();
   });
 
-  // --- Changement de couleur de fond (live)
-  bgColorPicker.addEventListener("input", () => {
-    CURRENT_BG = bgColorPicker.value;
-    applyBackground(CURRENT_BG);
-  });
+  // --- Police
+  fontSelect.addEventListener("change", () => { CURRENT_FONT = fontSelect.value; rerender(); });
 
-  // --- Réinitialisation du fond
-  bgReset.addEventListener("click", () => {
-    CURRENT_BG = "";
-    bgColorPicker.value = "#0d1117";
-    applyBackground("");
-  });
+  // --- Fond
+  bgColorPicker.addEventListener("input", () => { CURRENT_BG = bgColorPicker.value; applyBackground(CURRENT_BG); });
+  bgReset.addEventListener("click", () => { CURRENT_BG = ""; bgColorPicker.value = "#0d1117"; applyBackground(""); });
+
+  // --- Ban-list
+  function doAddBan() {
+    if (addTag(BANLIST, banInput.value, "banTags", BAN_COLOR)) { banInput.value = ""; rerender(); }
+  }
+  banAdd.addEventListener("click", doAddBan);
+  banInput.addEventListener("keydown", e => { if (e.key === "Enter") doAddBan(); });
+  banClear.addEventListener("click", () => { BANLIST.clear(); renderTags(BANLIST, "banTags", BAN_COLOR); rerender(); });
+
+  // --- Whitelist
+  function doAddWl() {
+    if (addTag(WHITELIST, wlInput.value, "wlTags", WHITE_COLOR)) { wlInput.value = ""; rerender(); }
+  }
+  wlAdd.addEventListener("click", doAddWl);
+  wlInput.addEventListener("keydown", e => { if (e.key === "Enter") doAddWl(); });
+  wlClear.addEventListener("click", () => { WHITELIST.clear(); renderTags(WHITELIST, "wlTags", WHITE_COLOR); rerender(); });
 
   // --- Analyse
   btn.addEventListener("click", () => {
     const text = input.value || "";
     status.textContent = "Analyse…";
+    const tokens = tokenize(text);
+    const freqs  = wordFrequencies(tokens);
 
-    const { tokens, freqs } = analyzeText(text);
-
-    if (tokens.length === 0 || freqs.length === 0) {
+    if (!tokens.length || !freqs.length) {
       results.style.display = "none";
       status.textContent = "Ajoute un texte (au moins quelques mots) 🙂";
       LAST_FREQS = [];
       return;
     }
 
-    results.style.display = "block";
-    status.textContent = `${tokens.length} mots retenus — ${freqs.length} termes uniques`;
-
     LAST_FREQS = freqs;
-    applyBackground(CURRENT_BG);
-    renderWordCloud(freqs);
+    results.style.display = "block";
+    const filtered = applyFilters(freqs);
+    const extra = filtered.length < freqs.length ? ` · ${filtered.length} après filtres` : "";
+    status.textContent = `${tokens.length} mots retenus — ${freqs.length} termes uniques${extra}`;
 
+    applyBackground(CURRENT_BG);
+    renderWordCloud(filtered);
     document.querySelector('.tabBtn[data-tab="cloud"]').click();
   });
 
-  // Ctrl/Cmd + Entrée pour analyser
-  input.addEventListener("keydown", (e) => {
+  input.addEventListener("keydown", e => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") btn.click();
   });
 
-  // Resize avec debounce (évite les re-renders en rafale)
+  // --- Resize avec debounce
   let resizeTimer;
-  window.addEventListener("resize", () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      if (!LAST_FREQS.length) return;
-      const tabOcc   = document.getElementById("tab-occ");
-      const tabCloud = document.getElementById("tab-cloud");
-      if (tabOcc   && tabOcc.style.display   !== "none") renderOccurrences(LAST_FREQS);
-      if (tabCloud && tabCloud.style.display !== "none") renderWordCloud(LAST_FREQS);
-    }, 150);
-  });
+  window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(rerender, 150); });
 });

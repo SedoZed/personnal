@@ -11,6 +11,63 @@
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Oswald:wght@400;700&family=Playfair+Display:wght@400;700&family=Poppins:wght@400;700&family=Roboto:wght@400;700&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="./datas/styles.css" />
+
+  <style>
+    /* Inputs des filtres */
+    .filter-input {
+      border-radius: 8px;
+      padding: 5px 10px;
+      background: rgba(255,255,255,0.05);
+      color: #e6edf3;
+      border: 1px solid rgba(255,255,255,0.12);
+      font-size: 13px;
+      outline: none;
+      flex: 1;
+      min-width: 0;
+    }
+    .filter-input::placeholder { opacity: 0.4; }
+    .filter-btn {
+      border-radius: 8px;
+      padding: 5px 10px;
+      background: rgba(255,255,255,0.06);
+      color: #c9d1d9;
+      border: 1px solid rgba(255,255,255,0.10);
+      cursor: pointer;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .filter-btn:hover { background: rgba(255,255,255,0.10); }
+    .filter-section {
+      flex: 1;
+      min-width: 220px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .filter-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      opacity: 0.55;
+      text-transform: uppercase;
+    }
+    .filter-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+      min-height: 22px;
+    }
+    .divider-v {
+      width: 1px;
+      align-self: stretch;
+      background: rgba(255,255,255,0.08);
+    }
+  </style>
 </head>
 <body>
   <div class="app">
@@ -41,39 +98,84 @@
             <button id="analyzeBtn" style="border-radius:12px; padding:10px 12px; background:rgba(110,168,254,0.18); color:#fff; border:1px solid rgba(110,168,254,0.35); cursor:pointer;">
               Analyser
             </button>
-            <span id="status" style="opacity:0.8;"></span>
+            <span id="status" style="opacity:0.8; font-size:13px;"></span>
           </div>
 
-          <!-- Barre de personnalisation -->
-          <div style="display:flex; gap:20px; align-items:center; margin-top:12px; flex-wrap:wrap; padding:10px 14px; border-radius:12px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08);">
+          <!-- ── Panneau de personnalisation ── -->
+          <div style="margin-top:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.03); overflow:hidden;">
 
-            <!-- Sélecteur de police -->
-            <div style="display:flex; align-items:center; gap:8px;">
-              <label for="fontSelect" style="font-size:13px; opacity:0.65; white-space:nowrap;">Police</label>
-              <select id="fontSelect" style="border-radius:8px; padding:6px 10px; background:rgba(255,255,255,0.06); color:#e6edf3; border:1px solid rgba(255,255,255,0.12); cursor:pointer; font-size:13px; outline:none;">
-                <option value="sans-serif">Sans-serif (défaut)</option>
-                <option value="Poppins">Poppins</option>
-                <option value="Roboto">Roboto</option>
-                <option value="Oswald">Oswald</option>
-                <option value="Playfair Display">Playfair Display</option>
-                <option value="Lato">Lato</option>
-              </select>
+            <!-- Ligne 1 : Police · Fond · Nombre de mots -->
+            <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.06);">
+
+              <!-- Police -->
+              <div style="display:flex; align-items:center; gap:8px;">
+                <label for="fontSelect" style="font-size:13px; opacity:0.55; white-space:nowrap;">Police</label>
+                <select id="fontSelect" style="border-radius:8px; padding:5px 10px; background:rgba(255,255,255,0.06); color:#e6edf3; border:1px solid rgba(255,255,255,0.12); cursor:pointer; font-size:13px; outline:none;">
+                  <option value="sans-serif">Sans-serif (défaut)</option>
+                  <option value="Poppins">Poppins</option>
+                  <option value="Roboto">Roboto</option>
+                  <option value="Oswald">Oswald</option>
+                  <option value="Playfair Display">Playfair Display</option>
+                  <option value="Lato">Lato</option>
+                </select>
+              </div>
+
+              <div class="divider-v" style="height:22px;"></div>
+
+              <!-- Couleur de fond -->
+              <div style="display:flex; align-items:center; gap:8px;">
+                <label for="bgColor" style="font-size:13px; opacity:0.55; white-space:nowrap;">Fond</label>
+                <input type="color" id="bgColor" value="#0d1117"
+                  style="width:34px; height:28px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:transparent; cursor:pointer; padding:2px;" />
+                <button id="bgReset" class="filter-btn">Réinitialiser</button>
+              </div>
+
+              <div class="divider-v" style="height:22px;"></div>
+
+              <!-- Nombre de mots -->
+              <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:180px;">
+                <label for="wordsSlider" style="font-size:13px; opacity:0.55; white-space:nowrap;">Mots affichés</label>
+                <input type="range" id="wordsSlider" min="5" max="100" value="50" style="flex:1; accent-color:rgba(110,168,254,0.7);" />
+                <span id="wordsLabel" style="font-size:13px; opacity:0.75; min-width:26px; text-align:right;">50</span>
+              </div>
+
             </div>
 
-            <!-- Séparateur visuel -->
-            <div style="width:1px; height:22px; background:rgba(255,255,255,0.10);"></div>
+            <!-- Ligne 2 : Filtres -->
+            <div style="display:flex; gap:16px; flex-wrap:wrap; padding:12px 14px; align-items:flex-start;">
 
-            <!-- Couleur de fond -->
-            <div style="display:flex; align-items:center; gap:8px;">
-              <label for="bgColor" style="font-size:13px; opacity:0.65; white-space:nowrap;">Fond</label>
-              <input type="color" id="bgColor" value="#0d1117"
-                style="width:34px; height:28px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:transparent; cursor:pointer; padding:2px;" />
-              <button id="bgReset" style="border-radius:8px; padding:5px 10px; background:transparent; color:#c9d1d9; border:1px solid rgba(255,255,255,0.10); cursor:pointer; font-size:12px;">
-                Réinitialiser
-              </button>
+              <!-- Ban-list -->
+              <div class="filter-section">
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                  <span class="filter-label" style="color:#f08080;">Mots exclus</span>
+                  <button id="banClear" class="filter-btn" style="font-size:11px; padding:3px 7px;">Tout effacer</button>
+                </div>
+                <div class="filter-row">
+                  <input id="banInput" class="filter-input" type="text" placeholder="Ajouter un mot… (Entrée)" />
+                  <button id="banAdd" class="filter-btn" style="border-color:rgba(220,60,60,0.3); color:#f08080;">+ Bannir</button>
+                </div>
+                <div id="banTags" class="tag-list"></div>
+              </div>
+
+              <div class="divider-v"></div>
+
+              <!-- Whitelist -->
+              <div class="filter-section">
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                  <span class="filter-label" style="color:#7de0b0;">Afficher uniquement</span>
+                  <button id="wlClear" class="filter-btn" style="font-size:11px; padding:3px 7px;">Tout effacer</button>
+                </div>
+                <div class="filter-row">
+                  <input id="wlInput" class="filter-input" type="text" placeholder="Ajouter un mot… (Entrée)" />
+                  <button id="wlAdd" class="filter-btn" style="border-color:rgba(60,180,120,0.3); color:#7de0b0;">+ Inclure</button>
+                </div>
+                <div id="wlTags" class="tag-list"></div>
+                <p style="font-size:11px; opacity:0.4; margin:2px 0 0;">Si non vide, seuls ces mots sont affichés.</p>
+              </div>
+
             </div>
-
           </div>
+          <!-- ── fin panneau ── -->
 
           <!-- Résultats -->
           <div id="results" style="display:none; margin-top:14px;">
@@ -89,7 +191,6 @@
             <div id="tab-cloud">
               <div id="wordcloud" style="width:100%; height:420px; border-radius:16px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02);"></div>
             </div>
-
             <div id="tab-occ" style="display:none;">
               <div id="occurrences" style="width:100%; height:420px; border-radius:16px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02);"></div>
             </div>
