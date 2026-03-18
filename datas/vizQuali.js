@@ -196,6 +196,129 @@ function renderOccurrences(freqs) {
     .text(d => d.count);
 }
 
+// ─── Export ────────────────────────────────────────────────────
+
+// Résout currentColor depuis le conteneur (thème sombre → blanc cassé par défaut)
+function resolveTextColor() {
+  const el = document.getElementById("wordcloud");
+  if (el) {
+    const c = window.getComputedStyle(el).color;
+    if (c && c !== "transparent" && c !== "") return c;
+  }
+  return "#e6edf3";
+}
+
+// Clone le SVG et remplace currentColor + injecte le fond si défini
+function prepareSvgClone(svgEl, textColor) {
+  const w = parseInt(svgEl.getAttribute("width"),  10);
+  const h = parseInt(svgEl.getAttribute("height"), 10);
+  const clone = svgEl.cloneNode(true);
+
+  // Résoudre currentColor sur tous les éléments texte et rect
+  clone.querySelectorAll("[style]").forEach(node => {
+    if (node.style.fill === "currentColor")   node.style.fill   = textColor;
+    if (node.style.color === "currentColor")  node.style.color  = textColor;
+    if (node.style.stroke === "currentColor") node.style.stroke = textColor;
+  });
+
+  // Fond de couleur (inséré en premier enfant)
+  const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  bg.setAttribute("x", "0"); bg.setAttribute("y", "0");
+  bg.setAttribute("width",  w); bg.setAttribute("height", h);
+  bg.setAttribute("fill", CURRENT_BG || "#0d1117");
+  clone.insertBefore(bg, clone.firstChild);
+
+  return { clone, w, h };
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+// Rend le SVG cloné dans un <canvas> et renvoie une Promise<canvas>
+function svgToCanvas(clone, w, h, scale = 2) {
+  return new Promise((resolve, reject) => {
+    const str  = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([str], { type: "image/svg+xml" });
+    const url  = URL.createObjectURL(blob);
+    const img  = new Image();
+    img.onload = () => {
+      const canvas   = document.createElement("canvas");
+      canvas.width   = w * scale;
+      canvas.height  = h * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      resolve(canvas);
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function setExportLoading(id, loading) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.disabled   = loading;
+  btn.style.opacity = loading ? "0.5" : "1";
+}
+
+async function exportSVG() {
+  const svgEl = document.querySelector("#wordcloud svg");
+  if (!svgEl) return;
+  setExportLoading("exportSVG", true);
+  try {
+    const { clone } = prepareSvgClone(svgEl, resolveTextColor());
+    const str  = new XMLSerializer().serializeToString(clone);
+    triggerDownload(new Blob([str], { type: "image/svg+xml" }), "wordcloud.svg");
+  } finally {
+    setExportLoading("exportSVG", false);
+  }
+}
+
+async function exportPNG() {
+  const svgEl = document.querySelector("#wordcloud svg");
+  if (!svgEl) return;
+  setExportLoading("exportPNG", true);
+  try {
+    const { clone, w, h } = prepareSvgClone(svgEl, resolveTextColor());
+    const canvas = await svgToCanvas(clone, w, h, 2);   // ×2 pour la résolution
+    canvas.toBlob(blob => triggerDownload(blob, "wordcloud.png"), "image/png");
+  } catch(e) {
+    console.error("Export PNG :", e);
+  } finally {
+    setExportLoading("exportPNG", false);
+  }
+}
+
+async function exportPDF() {
+  const svgEl = document.querySelector("#wordcloud svg");
+  if (!svgEl) return;
+  if (typeof window.jspdf === "undefined") {
+    alert("jsPDF est encore en cours de chargement. Réessaie dans un instant.");
+    return;
+  }
+  setExportLoading("exportPDF", true);
+  try {
+    const { jsPDF }       = window.jspdf;
+    const { clone, w, h } = prepareSvgClone(svgEl, resolveTextColor());
+    const canvas = await svgToCanvas(clone, w, h, 2);
+    const dataUrl    = canvas.toDataURL("image/png");
+    const orientation = w >= h ? "l" : "p";
+    const pdf  = new jsPDF({ orientation, unit: "px", format: [w, h], hotfixes: ["px_scaling"] });
+    pdf.addImage(dataUrl, "PNG", 0, 0, w, h);
+    pdf.save("wordcloud.pdf");
+  } catch(e) {
+    console.error("Export PDF :", e);
+  } finally {
+    setExportLoading("exportPDF", false);
+  }
+}
+
 // ─── Init ──────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
@@ -272,11 +395,20 @@ document.addEventListener("DOMContentLoaded", () => {
     applyBackground(CURRENT_BG);
     renderWordCloud(filtered);
     document.querySelector('.tabBtn[data-tab="cloud"]').click();
+
+    // Affiche la barre d'export
+    const exportBar = document.getElementById("exportBar");
+    if (exportBar) exportBar.style.display = "flex";
   });
 
   input.addEventListener("keydown", e => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") btn.click();
   });
+
+  // --- Export
+  document.getElementById("exportSVG")?.addEventListener("click", exportSVG);
+  document.getElementById("exportPNG")?.addEventListener("click", exportPNG);
+  document.getElementById("exportPDF")?.addEventListener("click", exportPDF);
 
   // --- Resize avec debounce
   let resizeTimer;

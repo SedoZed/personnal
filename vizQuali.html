@@ -190,6 +190,19 @@
 
             <div id="tab-cloud">
               <div id="wordcloud" style="width:100%; height:420px; border-radius:16px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02);"></div>
+              <!-- Barre d'export — visible uniquement quand le nuage est généré -->
+              <div id="exportBar" style="display:none; margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <span style="font-size:12px; opacity:0.45; margin-right:4px;">Exporter :</span>
+                <button id="exportSVG" class="filter-btn" title="Vecteur — modifiable dans Inkscape / Illustrator">
+                  SVG
+                </button>
+                <button id="exportPNG" class="filter-btn" title="Image raster ×2 — idéale pour impression ou présentation">
+                  PNG
+                </button>
+                <button id="exportPDF" class="filter-btn" title="Document PDF prêt à l'impression">
+                  PDF
+                </button>
+              </div>
             </div>
             <div id="tab-occ" style="display:none;">
               <div id="occurrences" style="width:100%; height:420px; border-radius:16px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02);"></div>
@@ -204,6 +217,7 @@
   <script src="./datas/app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-cloud/build/d3.layout.cloud.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="./datas/vizQuali.js"></script>
 </body>
 </html>
