@@ -1,7 +1,3 @@
-# Projet de visualisation interactif de données "DataViz Explorer"
+# SedoZed's Toolbox
 
-Membre de l'équipe "DataViz Explorer" : 
-- LAFUENTE Caroline (NET)
-- BOUCLY Cédric (NET)
-
-Copyright de riendutout, aucun droit n'est réservé
+Ici sont hébergés mes outils *hand-made* et/ou autre créations. Merci de voir ça comme un repository personnel avec mes p'tits trucs perso, quoi. 
